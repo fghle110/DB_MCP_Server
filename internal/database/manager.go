@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"dbmcp/internal/config"
+	"github.com/dbmcp/dbmcp/internal/config"
 )
 
 // DriverManager 数据库连接池管理器
