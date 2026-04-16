@@ -2,6 +2,8 @@
 
 一个用 Go 编写的数据库操作 MCP Server，允许 AI 工具（Claude Code、Cline 等）通过模型上下文协议与数据库进行交互。
 
+> 📚 [接入指南](docs/zh/getting-started.md) | [配置操作指南](docs/zh/configuration.md) | [English Docs](docs/en/getting-started.md)
+
 ## 功能特性
 
 - 多数据库支持：MySQL、PostgreSQL、SQLite（可扩展至其他数据库）
@@ -21,11 +23,16 @@
 
 ```bash
 # Windows (PowerShell)
-go build -o dbmcp.exe ./cmd/dbmcp
+go build -o build/dbmcp.exe ./cmd/dbmcp
+
+# macOS / Linux
+go build -o build/dbmcp ./cmd/dbmcp
 
 # 或使用 go install
 go install ./cmd/dbmcp
 ```
+
+构建产物输出至 `build/` 目录。
 
 ### 3. 配置
 
@@ -89,7 +96,7 @@ permissions:
 {
   "mcpServers": {
     "dbmcp": {
-      "command": "C:\\Workspace\\TestProject\\dbmcp\\dbmcp.exe",
+      "command": "C:\\Workspace\\TestProject\\dbmcp\\build\\dbmcp.exe",
       "args": ["--config", "C:\\Users\\你的用户名\\.dbmcp\\config.yaml"]
     }
   }
@@ -105,7 +112,7 @@ permissions:
 ```json
 {
   "dbmcp": {
-    "command": "C:\\path\\to\\dbmcp.exe",
+    "command": "C:\\path\\to\\dbmcp\\build\\dbmcp.exe",
     "args": ["--config", "C:\\Users\\你的用户名\\.dbmcp\\config.yaml"]
   }
 }
@@ -172,6 +179,20 @@ go test ./internal/mcp/... -v
 | `internal/mcp/server_test.go` | 无 | MCP Server 端到端,6 个测试用例 |
 
 如果 Docker 不可用,MySQL 和 PostgreSQL 测试会自动跳过。
+
+## 未来规划
+
+dbmcp 通过 `DatabaseDriver` 接口实现数据库无关的架构，扩展新驱动只需实现接口并注册。
+
+| 类型 | 数据库 | 状态 |
+|------|--------|------|
+| 时序数据库 | InfluxDB, TDengine, Prometheus | 📋 计划中 |
+| 图数据库 | Neo4j, NebulaGraph | 📋 计划中 |
+| 国产数据库 | 达梦(DM), 人大金仓(KingBase), OceanBase, TiDB | 📋 计划中 |
+| NoSQL | Redis, MongoDB | 📋 计划中 |
+| 云数据库 | Snowflake, ClickHouse | 📋 计划中 |
+
+> 详见 [接入指南](docs/zh/getting-started.md#未来规划) 或 [Roadmap](docs/en/getting-started.md#roadmap)
 
 ## 许可证
 

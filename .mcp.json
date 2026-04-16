@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "dbmcp": {
-      "command": "C:\\Workspace\\TestProject\\dbmcp\\dbmcp.exe",
+      "command": "C:\\Workspace\\TestProject\\dbmcp\\build\\dbmcp.exe",
       "args": ["--config", "C:\\Users\\fghle\\.dbmcp\\config.yaml"]
     }
   }

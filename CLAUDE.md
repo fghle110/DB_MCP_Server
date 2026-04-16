@@ -4,47 +4,63 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 
 ## 项目概述
 
-**dbmcp** — 一个用 Go 编写的数据库操作 MCP Server。通过模型上下文协议（stdio 传输）暴露 8 个工具，供 AI 工具与 MySQL、PostgreSQL、SQLite 数据库交互。
+**dbmcp** — 一个用 Go 编写的数据库操作 MCP Server。通过模型上下文协议（stdio 传输）暴露 11 个工具，供 AI 工具与 MySQL、PostgreSQL、SQLite 数据库交互。支持多数据库连接、结构化配置、事务控制、配置热重载、SQL 注入防护和操作审计。
 
 ## 常用命令
 
 ```bash
-# 构建
-go build -o dbmcp.exe ./cmd/dbmcp
+# 构建（输出至 build/ 目录）
+go build -o build/dbmcp.exe ./cmd/dbmcp
 
 # 运行全部测试
 go test ./... -v
 
-# 运行单个包的测试
-go test ./internal/config/... -v
+# 仅运行单元测试（无需 Docker）
+go test ./internal/config/... ./internal/security/... ./internal/permission/... -v
 
 # 运行特定数据库集成测试
 go test ./internal/database/... -run TestSQLite -v
-go test ./internal/mcp/... -run TestMCP -v
+go test ./internal/database/... -run TestMySQL -v
+go test ./internal/mcp/... -v
 
 # 构建指定平台版本
-GOOS=linux GOARCH=amd64 go build -o dbmcp ./cmd/dbmcp
+GOOS=linux GOARCH=amd64 go build -o build/dbmcp ./cmd/dbmcp
+GOOS=darwin GOARCH=arm64 go build -o build/dbmcp-darwin ./cmd/dbmcp
 
 # 网络受限时配置代理
 GOPROXY=https://goproxy.cn,direct go get <package>
 ```
 
-> **注意**：SQLite 集成测试需要 CGO（C 编译器）。如果没有 gcc，可以使用 `modernc.org/sqlite` 替代 `mattn/go-sqlite3`，或跳过 SQLite 测试。
+> **注意**：SQLite 使用 `modernc.org/sqlite`（纯 Go 实现），无需 CGO。MySQL/PostgreSQL 集成测试需要 Docker 自动启动容器。
 
 ## 架构
 
 ### 模块结构
 
-`internal/` 下每个模块职责清晰、相互独立：
-
 | 模块 | 职责 |
 |------|------|
-| `config/` | 配置加载（YAML）、校验、基于 fsnotify 的热重载 |
-| `database/` | `DatabaseDriver` 接口 + `DriverManager` 连接池 + 3 种驱动实现 |
-| `security/` | SQL 注入防护：关键字拦截、多语句检测、输入校验 |
+| `config/` | 配置加载（YAML）、结构化字段支持（host/port/username/password/database/options）、校验、fsnotify 热重载 |
+| `database/` | `DatabaseDriver` 接口 + `DriverManager` 连接池 + 3 种驱动实现（MySQL/PG/SQLite）+ 事务支持 |
+| `security/` | SQL 注入防护：关键字拦截、多语句检测（支持 `$$` dollar-quoted strings）、输入校验 |
 | `permission/` | 权限校验：只读模式、数据库白名单、表黑名单、操作白名单 |
-| `logger/` | 审计日志，写入本地 SQLite（`~/.dbmcp/audit.db`） |
-| `mcp/` | MCP Server：注册 8 个工具，串联所有模块的安全/权限管道 |
+| `logger/` | 审计日志，写入本地 SQLite（`~/.dbmcp/audit.db`），含 DSN 脱敏和高危操作标记 |
+| `mcp/` | MCP Server：注册 11 个工具，串联所有模块的安全/权限管道 |
+
+### MCP 工具列表
+
+| 工具 | 说明 |
+|------|------|
+| `execute_query` | 执行 SELECT 查询 |
+| `execute_update` | 执行 INSERT/UPDATE/DELETE/DDL |
+| `execute_param_query` | 执行参数化查询 |
+| `list_databases` | 列出已连接的数据库 |
+| `list_tables` | 列出数据库中的表 |
+| `describe_table` | 查看表结构 |
+| `query_logs` | 查询审计日志 |
+| `config_status` | 查看配置状态 |
+| `begin_tx` | 开始事务 |
+| `commit` | 提交事务 |
+| `rollback` | 回滚事务 |
 
 ### 请求流程
 
@@ -52,12 +68,46 @@ GOPROXY=https://goproxy.cn,direct go get <package>
 
 1. **安全检查**（`security.SQLGuard`）— 长度/编码/控制字符检查 → 多语句检测 → 危险关键字拦截
 2. **权限校验**（`permission.Checker`）— 数据库白名单 → 表黑名单 → 操作白名单 + 只读模式检查
-3. **数据库驱动**（`database.DatabaseDriver`）— 执行查询，30 秒超时
-4. **审计日志**（`logger.AuditLogger`）— 记录操作至 SQLite
+3. **数据库驱动**（`database.DatabaseDriver`）— 执行查询，30 秒超时；写操作自动包装在事务中，失败自动回滚
+4. **审计日志**（`logger.AuditLogger`）— 记录操作至 SQLite，含 DSN 脱敏和高危标记
+
+### 配置
+
+配置文件位于 `~/.dbmcp/config.yaml`，支持两种配置风格：
+
+```yaml
+# 方式一：结构化字段（推荐）
+databases:
+  mysql:
+    driver: mysql
+    host: localhost
+    port: 3306
+    username: root
+    password: ""
+    database: ""
+    options:
+      parseTime: "true"
+  postgres:
+    driver: postgres
+    host: localhost
+    port: 5432
+    username: postgres
+    password: ""
+    database: postgres
+    options:
+      sslmode: disable
+
+# 方式二：DSN 字符串（向后兼容）
+  mysql_dsn:
+    driver: mysql
+    dsn: "root:pass@tcp(localhost:3306)/mydb?parseTime=true"
+```
+
+校验规则：至少需要一个有效数据库条目（driver + dsn 或 host 都存在）。空条目会被跳过。
 
 ### 配置热重载
 
-`config/watcher.go` 使用 fsnotify 监听配置文件。变更时：
+`config/watcher.go` 监听配置文件所在目录（非文件本身），处理 Write/Create/Rename 事件。变更时：
 1. 加载并校验新配置
 2. 通过 `AppState.UpdateConfig()` 原子替换
 3. 通过 `DriverManager.SyncFromConfig()` 同步数据库连接（旧连接 30 秒后优雅关闭）
@@ -65,23 +115,17 @@ GOPROXY=https://goproxy.cn,direct go get <package>
 
 校验失败时保留旧配置。
 
+### 事务支持
+
+`DatabaseDriver` 接口提供 `BeginTx`/`Commit`/`Rollback` 方法。写操作（`Exec`）默认使用单语句事务，失败自动回滚。多语句场景可通过 `begin_tx` → 多次 `execute_update` → `commit`/`rollback` 控制。
+
+### 安全模块
+
+`security/sql_guard.go` 支持 PostgreSQL `$$...$$` dollar-quoted strings，`$$` 内的 `;` 不被误判为多语句。
+
 ### 添加新数据库驱动
 
-实现 `internal/database/interface.go` 中的 `DatabaseDriver` 接口：
-
-```go
-type DatabaseDriver interface {
-    Connect(dsn string) error
-    Query(ctx context.Context, sql string) (*QueryResult, error)
-    Exec(ctx context.Context, sql string) (int64, error)
-    ListDatabases(ctx context.Context) ([]string, error)
-    ListTables(ctx context.Context, database string) ([]string, error)
-    DescribeTable(ctx context.Context, database, table string) ([]Column, error)
-    Close() error
-}
-```
-
-然后在 `manager.go` 的 `createDriver` 工厂函数中注册。
+实现 `internal/database/interface.go` 中的 `DatabaseDriver` 接口（含事务方法），然后在 `manager.go` 的 `createDriver` 工厂函数中注册。
 
 ### 模块依赖
 
@@ -94,4 +138,4 @@ cmd/dbmcp/main.go (入口)
 
 ## 技术栈
 
-Go 1.26, mark3labs/mcp-go v0.48, go-sql-driver/mysql, jackc/pgx/v5, mattn/go-sqlite3, fsnotify, yaml.v3
+Go 1.26, mark3labs/mcp-go, go-sql-driver/mysql, jackc/pgx/v5, modernc.org/sqlite, fsnotify, yaml.v3

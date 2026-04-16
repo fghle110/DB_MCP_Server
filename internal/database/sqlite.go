@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -11,6 +12,7 @@ import (
 // SQLiteDriver SQLite 数据库驱动
 type SQLiteDriver struct {
 	db *sql.DB
+	tx *sql.Tx
 }
 
 // NewSQLiteDriver 创建 SQLite 驱动实例
@@ -62,13 +64,41 @@ func (d *SQLiteDriver) Query(ctx context.Context, sqlStr string) (*QueryResult, 
 	return result, rows.Err()
 }
 
-// Exec 执行写入
+// Exec 执行写入（使用事务，失败自动回滚）
 func (d *SQLiteDriver) Exec(ctx context.Context, sqlStr string) (int64, error) {
-	res, err := d.db.ExecContext(ctx, sqlStr)
+	if d.tx != nil {
+		return d.execInTx(ctx, sqlStr)
+	}
+	return d.execSingle(ctx, sqlStr)
+}
+
+func (d *SQLiteDriver) execInTx(ctx context.Context, sqlStr string) (int64, error) {
+	res, err := d.tx.ExecContext(ctx, sqlStr)
+	if err != nil {
+		_ = d.tx.Rollback()
+		d.tx = nil
+		return 0, fmt.Errorf("exec failed: %w (rolled back)", err)
+	}
+	affected, _ := res.RowsAffected()
+	return affected, nil
+}
+
+func (d *SQLiteDriver) execSingle(ctx context.Context, sqlStr string) (int64, error) {
+	tx, err := d.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
-	return res.RowsAffected()
+	res, execErr := tx.ExecContext(ctx, sqlStr)
+	if execErr != nil {
+		_ = tx.Rollback()
+		return 0, execErr
+	}
+	if err := tx.Commit(); err != nil {
+		_ = tx.Rollback()
+		return 0, err
+	}
+	affected, _ := res.RowsAffected()
+	return affected, nil
 }
 
 // ListDatabases 列出数据库(SQLite 是文件数据库,返回文件名)
@@ -127,8 +157,45 @@ func (d *SQLiteDriver) DescribeTable(ctx context.Context, database, table string
 
 // Close 关闭连接
 func (d *SQLiteDriver) Close() error {
+	if d.tx != nil {
+		_ = d.tx.Rollback()
+		d.tx = nil
+	}
 	if d.db != nil {
 		return d.db.Close()
 	}
 	return nil
+}
+
+// BeginTx 开始事务
+func (d *SQLiteDriver) BeginTx(ctx context.Context) error {
+	if d.tx != nil {
+		return fmt.Errorf("transaction already in progress")
+	}
+	tx, err := d.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	d.tx = tx
+	return nil
+}
+
+// Commit 提交事务
+func (d *SQLiteDriver) Commit() error {
+	if d.tx == nil {
+		return fmt.Errorf("no transaction in progress")
+	}
+	tx := d.tx
+	d.tx = nil
+	return tx.Commit()
+}
+
+// Rollback 回滚事务
+func (d *SQLiteDriver) Rollback() error {
+	if d.tx == nil {
+		return fmt.Errorf("no transaction in progress")
+	}
+	err := d.tx.Rollback()
+	d.tx = nil
+	return err
 }

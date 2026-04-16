@@ -134,18 +134,24 @@ func applyDefaults(cfg *AppConfig) {
 	}
 }
 
-// ValidateConfig 校验配置合法性
+// ValidateConfig 校验配置合法性（跳过空条目，允许部分连接失败）
 func ValidateConfig(cfg *AppConfig) error {
-	if len(cfg.Databases) == 0 {
-		return &ConfigError{Message: "no databases configured"}
-	}
+	validCount := 0
 	for name, db := range cfg.Databases {
+		// 空条目（注释掉的配置常见）直接跳过
+		if db.Driver == "" && db.DSN == "" && db.Host == "" {
+			continue
+		}
 		if db.Driver == "" {
 			return &ConfigError{Message: "database '" + name + "' missing driver"}
 		}
-		if db.DSN == "" {
-			return &ConfigError{Message: "database '" + name + "' missing dsn"}
+		if db.DSN == "" && db.Host == "" {
+			return &ConfigError{Message: "database '" + name + "' missing dsn or host"}
 		}
+		validCount++
+	}
+	if validCount == 0 {
+		return &ConfigError{Message: "no valid databases configured"}
 	}
 	return nil
 }

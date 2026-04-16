@@ -12,6 +12,7 @@ import (
 // MySQLDriver MySQL 数据库驱动
 type MySQLDriver struct {
 	db *sql.DB
+	tx *sql.Tx
 }
 
 // NewMySQLDriver 创建 MySQL 驱动实例
@@ -63,13 +64,41 @@ func (d *MySQLDriver) Query(ctx context.Context, sqlStr string) (*QueryResult, e
 	return result, rows.Err()
 }
 
-// Exec 执行写入
+// Exec 执行写入（使用事务，失败自动回滚）
 func (d *MySQLDriver) Exec(ctx context.Context, sqlStr string) (int64, error) {
-	res, err := d.db.ExecContext(ctx, sqlStr)
+	if d.tx != nil {
+		return d.execInTx(ctx, sqlStr)
+	}
+	return d.execSingle(ctx, sqlStr)
+}
+
+func (d *MySQLDriver) execInTx(ctx context.Context, sqlStr string) (int64, error) {
+	res, err := d.tx.ExecContext(ctx, sqlStr)
+	if err != nil {
+		_ = d.tx.Rollback()
+		d.tx = nil
+		return 0, fmt.Errorf("exec failed: %w (rolled back)", err)
+	}
+	affected, _ := res.RowsAffected()
+	return affected, nil
+}
+
+func (d *MySQLDriver) execSingle(ctx context.Context, sqlStr string) (int64, error) {
+	tx, err := d.db.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, err
 	}
-	return res.RowsAffected()
+	res, execErr := tx.ExecContext(ctx, sqlStr)
+	if execErr != nil {
+		_ = tx.Rollback()
+		return 0, execErr
+	}
+	if err := tx.Commit(); err != nil {
+		_ = tx.Rollback()
+		return 0, err
+	}
+	affected, _ := res.RowsAffected()
+	return affected, nil
 }
 
 // ListDatabases 列出数据库
@@ -129,8 +158,45 @@ func (d *MySQLDriver) DescribeTable(ctx context.Context, database, table string)
 
 // Close 关闭连接
 func (d *MySQLDriver) Close() error {
+	if d.tx != nil {
+		_ = d.tx.Rollback()
+		d.tx = nil
+	}
 	if d.db != nil {
 		return d.db.Close()
 	}
 	return nil
+}
+
+// BeginTx 开始事务
+func (d *MySQLDriver) BeginTx(ctx context.Context) error {
+	if d.tx != nil {
+		return fmt.Errorf("transaction already in progress")
+	}
+	tx, err := d.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	d.tx = tx
+	return nil
+}
+
+// Commit 提交事务
+func (d *MySQLDriver) Commit() error {
+	if d.tx == nil {
+		return fmt.Errorf("no transaction in progress")
+	}
+	tx := d.tx
+	d.tx = nil
+	return tx.Commit()
+}
+
+// Rollback 回滚事务
+func (d *MySQLDriver) Rollback() error {
+	if d.tx == nil {
+		return fmt.Errorf("no transaction in progress")
+	}
+	err := d.tx.Rollback()
+	d.tx = nil
+	return err
 }

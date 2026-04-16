@@ -25,4 +25,8 @@ type DatabaseDriver interface {
 	ListTables(ctx context.Context, database string) ([]string, error)
 	DescribeTable(ctx context.Context, database, table string) ([]Column, error)
 	Close() error
+	// 事务支持
+	BeginTx(ctx context.Context) error
+	Commit() error
+	Rollback() error
 }

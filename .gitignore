@@ -4,8 +4,8 @@ dbmcp.exe
 *.exe
 
 # Build output
-/dist/
 /build/
+/dist/
 
 # Go
 /vendor/

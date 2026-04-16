@@ -22,7 +22,10 @@
       "mcp__dbmcp__describe_table",
       "mcp__dbmcp__execute_update",
       "mcp__dbmcp__execute_query",
-      "mcp__dbmcp__config_status"
+      "mcp__dbmcp__config_status",
+      "Bash(pg_isready -h localhost -p 5432)",
+      "Bash(docker exec dbmcp-postgres *)",
+      "mcp__dbmcp__query_logs"
     ]
   },
   "enabledPlugins": {

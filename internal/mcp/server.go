@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/dbmcp/dbmcp/internal/config"
@@ -114,6 +116,30 @@ func (d *DBMCPServer) registerTools() {
 			mcp.WithDescription("Show current configuration status"),
 		),
 		d.handleConfigStatus,
+	)
+
+	d.srv.AddTool(
+		mcp.NewTool("begin_tx",
+			mcp.WithDescription("Start a database transaction"),
+			mcp.WithString("database", mcp.Required(), mcp.Description("Database name")),
+		),
+		d.handleBeginTx,
+	)
+
+	d.srv.AddTool(
+		mcp.NewTool("commit",
+			mcp.WithDescription("Commit the current transaction"),
+			mcp.WithString("database", mcp.Required(), mcp.Description("Database name")),
+		),
+		d.handleCommit,
+	)
+
+	d.srv.AddTool(
+		mcp.NewTool("rollback",
+			mcp.WithDescription("Rollback the current transaction"),
+			mcp.WithString("database", mcp.Required(), mcp.Description("Database name")),
+		),
+		d.handleRollback,
 	)
 }
 
@@ -338,6 +364,45 @@ func (d *DBMCPServer) handleConfigStatus(ctx context.Context, req mcp.CallToolRe
 	return mcp.NewToolResultText(status), nil
 }
 
+func (d *DBMCPServer) handleBeginTx(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args := getArgs(req)
+	dbName := strArg(args, "database")
+	drv, err := d.dm.Get(dbName)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if err := drv.BeginTx(ctx); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return mcp.NewToolResultText(fmt.Sprintf("Transaction started on '%s'.", dbName)), nil
+}
+
+func (d *DBMCPServer) handleCommit(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args := getArgs(req)
+	dbName := strArg(args, "database")
+	drv, err := d.dm.Get(dbName)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if err := drv.Commit(); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return mcp.NewToolResultText(fmt.Sprintf("Transaction committed on '%s'.", dbName)), nil
+}
+
+func (d *DBMCPServer) handleRollback(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args := getArgs(req)
+	dbName := strArg(args, "database")
+	drv, err := d.dm.Get(dbName)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if err := drv.Rollback(); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return mcp.NewToolResultText(fmt.Sprintf("Transaction rolled back on '%s'.", dbName)), nil
+}
+
 func queryResultToText(result *database.QueryResult) *mcp.CallToolResult {
 	if len(result.Rows) == 0 {
 		return mcp.NewToolResultText("Query executed successfully. 0 rows returned.")
@@ -357,11 +422,17 @@ func formatColumns(columns []database.Column) string {
 func formatLogEntries(entries []logger.LogEntry) string {
 	result := "Audit Logs:\n"
 	for _, e := range entries {
-		result += fmt.Sprintf("[%s] %s/%s %s | %s | %dms\n",
+		riskTag := ""
+		if e.IsHighRisk {
+			riskTag = " [HIGH_RISK]"
+		}
+		result += fmt.Sprintf("[%s] %s/%s %s | %s | %dms | conn: %s%s\n",
 			e.Timestamp.Format("2006-01-02 15:04:05"),
 			e.Database, e.Action, e.Result,
 			truncateString(e.SQL, 80),
 			e.DurationMs,
+			e.DSN,
+			riskTag,
 		)
 	}
 	return result
@@ -386,13 +457,71 @@ func truncateString(s string, maxLen int) string {
 }
 
 func (d *DBMCPServer) logAudit(dbName, action, sql, result, errMsg string, durationMs int64) {
+	cfg := d.app.Config()
+	dsn := ""
+	if dbCfg, ok := cfg.Databases[dbName]; ok {
+		dsn = maskDSN(dbCfg.DSN)
+		if dsn == "" && dbCfg.Host != "" {
+			dsn = fmt.Sprintf("%s:%d", dbCfg.Host, dbCfg.Port)
+		}
+	}
 	_ = d.auditLog.Log(logger.LogEntry{
 		Timestamp:    time.Now(),
 		Database:     dbName,
+		DSN:          dsn,
 		Action:       action,
 		SQL:          sql,
 		Result:       result,
 		ErrorMessage: errMsg,
 		DurationMs:   durationMs,
+		IsHighRisk:   isHighRiskAction(action, sql),
 	})
+}
+
+// maskDSN 脱敏 DSN 中的密码
+func maskDSN(dsn string) string {
+	if dsn == "" {
+		return ""
+	}
+	// MySQL: user:pass@tcp(host:port)/db
+	if idx := strings.Index(dsn, "@"); idx >= 0 {
+		userPass := dsn[:idx]
+		if colon := strings.Index(userPass, ":"); colon >= 0 {
+			return dsn[:colon] + ":***" + dsn[idx:]
+		}
+	}
+	// PostgreSQL: postgres://user:pass@host:port/db
+	if strings.HasPrefix(dsn, "postgres://") {
+		if atIdx := strings.Index(dsn, "@"); atIdx >= 0 {
+			userPass := dsn[len("postgres://"):atIdx]
+			if colon := strings.Index(userPass, ":"); colon >= 0 {
+				return dsn[:len("postgres://")+colon] + "***" + dsn[atIdx:]
+			}
+		}
+	}
+	return dsn
+}
+
+// isHighRiskAction 判断是否为高危操作
+func isHighRiskAction(action string, sql string) bool {
+	highRiskActions := []string{"DROP", "TRUNCATE", "ALTER"}
+	for _, a := range highRiskActions {
+		if strings.HasPrefix(action, a) {
+			return true
+		}
+	}
+	// 高危 SQL 模式
+	highRiskPatterns := []string{
+		`(?i)\bDROP\s+(TABLE|DATABASE)\b`,
+		`(?i)\bTRUNCATE\b`,
+		`(?i)\bALTER\s+TABLE\b.*\bDROP\b`,
+		`(?i)\bDELETE\b.*\bWHERE\b.*\b1\s*=\s*1`,
+		`(?i)\bUPDATE\b.*\bWHERE\b.*\b1\s*=\s*1`,
+	}
+	for _, pat := range highRiskPatterns {
+		if matched, _ := regexp.MatchString(pat, sql); matched {
+			return true
+		}
+	}
+	return false
 }

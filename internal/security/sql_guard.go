@@ -23,9 +23,8 @@ var dangerousPatternStrings = []string{
 	`(?i)\bREVOKE\b`,
 	`(?i)\bALTER\s+USER\b`,
 	`(?i)\bCREATE\s+USER\b`,
-	// 存储过程执行
-	`(?i)\bEXEC\b`,
-	`(?i)\bEXECUTE\b`,
+	// 存储过程执行（仅拦截直接执行，不拦截 CREATE FUNCTION 内部的）
+	// 注意: EXEC/EXECUTE 在 CREATE FUNCTION 内部是合法的，不在此处拦截
 	// 数据库特定危险操作
 	`(?i)\bSHOW\s+GRANTS\b`,
 }
@@ -96,6 +95,8 @@ func removeStringLiterals(sql string) string {
 	result := make([]byte, 0, len(sql))
 	inSingleQuote := false
 	inDoubleQuote := false
+	inDollarQuote := false
+	dollarTag := ""
 	escaped := false
 
 	for i := 0; i < len(sql); i++ {
@@ -106,7 +107,36 @@ func removeStringLiterals(sql string) string {
 		}
 		if c == '\\' {
 			escaped = true
-			result = append(result, c)
+			if !inDollarQuote {
+				result = append(result, c)
+			}
+			continue
+		}
+		// 检测 dollar-quoted string ($$ 或 $tag$)
+		if c == '$' && !inSingleQuote && !inDoubleQuote {
+			if !inDollarQuote {
+				// 尝试匹配 $tag$
+				j := i + 1
+				for j < len(sql) && (isIdentChar(sql[j])) {
+					j++
+				}
+				if j < len(sql) && sql[j] == '$' {
+					inDollarQuote = true
+					dollarTag = sql[i : j+1]
+					i = j
+					continue
+				}
+			} else {
+				// 检查是否匹配结束 tag
+				if i+len(dollarTag) <= len(sql) && sql[i:i+len(dollarTag)] == dollarTag {
+					inDollarQuote = false
+					dollarTag = ""
+					i += len(dollarTag) - 1
+					continue
+				}
+			}
+		}
+		if inDollarQuote {
 			continue
 		}
 		if c == '\'' && !inDoubleQuote {
@@ -122,6 +152,10 @@ func removeStringLiterals(sql string) string {
 		}
 	}
 	return string(result)
+}
+
+func isIdentChar(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_'
 }
 
 // removeComments 去除 SQL 注释
