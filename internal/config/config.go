@@ -11,8 +11,19 @@ import (
 
 // DatabaseConfig 单个数据库连接配置
 type DatabaseConfig struct {
-	Driver string `yaml:"driver"`
-	DSN    string `yaml:"dsn"`
+	Driver   string            `yaml:"driver"`
+	DSN      string            `yaml:"dsn"`
+	Host     string            `yaml:"host"`
+	Port     int               `yaml:"port"`
+	Username string            `yaml:"username"`
+	Password string            `yaml:"password"`
+	Database string            `yaml:"database"`
+	Options  map[string]string `yaml:"options"`
+}
+
+// HasStructFields 判断是否使用结构化字段
+func (d *DatabaseConfig) HasStructFields() bool {
+	return d.Host != "" || d.Port != 0 || d.Username != "" || d.Password != "" || d.Database != ""
 }
 
 // PermissionConfig 权限配置

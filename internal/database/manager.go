@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"log"
+	"net/url"
 	"sync"
 	"time"
 
@@ -23,7 +24,7 @@ func NewDriverManager() *DriverManager {
 }
 
 // Register 注册数据库连接
-func (dm *DriverManager) Register(name, driverType, dsn string) error {
+func (dm *DriverManager) Register(name, driverType string, cfg config.DatabaseConfig) error {
 	dm.mu.Lock()
 	defer dm.mu.Unlock()
 
@@ -36,6 +37,7 @@ func (dm *DriverManager) Register(name, driverType, dsn string) error {
 		return fmt.Errorf("create driver '%s': %w", driverType, err)
 	}
 
+	dsn := buildDSN(driverType, cfg)
 	if err := drv.Connect(dsn); err != nil {
 		return fmt.Errorf("connect '%s': %w", name, err)
 	}
@@ -101,7 +103,8 @@ func (dm *DriverManager) SyncFromConfig(databases map[string]config.DatabaseConf
 			log.Printf("[db] skip %s: %v", name, err)
 			continue
 		}
-		if err := drv.Connect(dbCfg.DSN); err != nil {
+		dsn := buildDSN(dbCfg.Driver, dbCfg)
+		if err := drv.Connect(dsn); err != nil {
 			log.Printf("[db] connect %s failed: %v", name, err)
 			continue
 		}
@@ -135,4 +138,99 @@ func createDriver(driverType string) (DatabaseDriver, error) {
 	default:
 		return nil, fmt.Errorf("unsupported driver type: %s", driverType)
 	}
+}
+
+// buildDSN 从结构化配置或原始 DSN 字符串构建连接串
+func buildDSN(driverType string, cfg config.DatabaseConfig) string {
+	// 如果提供了原始 DSN，直接使用
+	if cfg.DSN != "" {
+		return cfg.DSN
+	}
+
+	// 否则从结构化字段组装
+	switch driverType {
+	case "mysql":
+		return buildMySQLDSN(cfg)
+	case "postgres", "postgresql":
+		return buildPostgresDSN(cfg)
+	case "sqlite", "sqlite3":
+		return buildSQLiteDSN(cfg)
+	default:
+		return ""
+	}
+}
+
+// buildMySQLDSN 组装 MySQL DSN: user:pass@tcp(host:port)/dbname?opts
+func buildMySQLDSN(cfg config.DatabaseConfig) string {
+	host := cfg.Host
+	if host == "" {
+		host = "localhost"
+	}
+	port := cfg.Port
+	if port == 0 {
+		port = 3306
+	}
+	addr := fmt.Sprintf("%s:%d", host, port)
+	user := cfg.Username
+	if user == "" {
+		user = "root"
+	}
+	dsn := fmt.Sprintf("%s:%s@tcp(%s)/%s",
+		user, url.QueryEscape(cfg.Password), addr, cfg.Database)
+
+	// 组装 options
+	opts := make(url.Values)
+	for k, v := range cfg.Options {
+		opts.Set(k, v)
+	}
+	if encoded := opts.Encode(); encoded != "" {
+		dsn += "?" + encoded
+	}
+	return dsn
+}
+
+// buildPostgresDSN 组装 PostgreSQL DSN: postgres://user:pass@host:port/dbname?opts
+func buildPostgresDSN(cfg config.DatabaseConfig) string {
+	host := cfg.Host
+	if host == "" {
+		host = "localhost"
+	}
+	port := cfg.Port
+	if port == 0 {
+		port = 5432
+	}
+	user := cfg.Username
+	if user == "" {
+		user = "postgres"
+	}
+	dbname := cfg.Database
+	if dbname == "" {
+		dbname = "postgres"
+	}
+
+	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s",
+		url.QueryEscape(user), url.QueryEscape(cfg.Password), host, port, url.QueryEscape(dbname))
+
+	// 组装 options
+	opts := make(url.Values)
+	for k, v := range cfg.Options {
+		opts.Set(k, v)
+	}
+	if encoded := opts.Encode(); encoded != "" {
+		dsn += "?" + encoded
+	}
+	return dsn
+}
+
+// buildSQLiteDSN 组装 SQLite DSN: 直接返回文件路径
+func buildSQLiteDSN(cfg config.DatabaseConfig) string {
+	if cfg.DSN != "" {
+		return cfg.DSN
+	}
+	// 如果 host 被当作文件路径使用
+	if cfg.Host != "" {
+		return cfg.Host
+	}
+	// 默认
+	return ":memory:"
 }

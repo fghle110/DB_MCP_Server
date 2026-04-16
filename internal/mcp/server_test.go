@@ -48,7 +48,7 @@ permissions:
 	dm := database.NewDriverManager()
 	cfg := app.Config()
 	for name, dbCfg := range cfg.Databases {
-		if err := dm.Register(name, dbCfg.Driver, dbCfg.DSN); err != nil {
+		if err := dm.Register(name, dbCfg.Driver, dbCfg); err != nil {
 			t.Fatalf("register db %s: %v", name, err)
 		}
 	}

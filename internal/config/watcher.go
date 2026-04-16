@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"path/filepath"
 
 	"github.com/fsnotify/fsnotify"
 )
@@ -14,6 +15,10 @@ func StartWatcher(app *AppState, onChange func()) error {
 		return fmt.Errorf("create watcher: %w", err)
 	}
 
+	configPath := app.ConfigPath()
+	configFile := filepath.Base(configPath)
+	configDir := filepath.Dir(configPath)
+
 	go func() {
 		defer watcher.Close()
 		for {
@@ -22,14 +27,18 @@ func StartWatcher(app *AppState, onChange func()) error {
 				if !ok {
 					return
 				}
-				if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create {
-					if event.Name == app.ConfigPath() || event.Name == app.ConfigPath()+".tmp" {
-						log.Printf("[config] detected config change, reloading...")
-						if err := ReloadConfig(app); err != nil {
-							log.Printf("[config] reload failed: %v", err)
-						} else if onChange != nil {
-							onChange()
-						}
+				// 检查事件是否针对配置文件（匹配文件名）
+				eventBase := filepath.Base(event.Name)
+				if eventBase != configFile {
+					continue
+				}
+				// 处理 Write、Create、Rename 事件（覆盖写/重建文件场景）
+				if event.Op&(fsnotify.Write|fsnotify.Create|fsnotify.Rename) != 0 {
+					log.Printf("[config] detected config change, reloading...")
+					if err := ReloadConfig(app); err != nil {
+						log.Printf("[config] reload failed: %v", err)
+					} else if onChange != nil {
+						onChange()
 					}
 				}
 			case err, ok := <-watcher.Errors:
@@ -41,11 +50,12 @@ func StartWatcher(app *AppState, onChange func()) error {
 		}
 	}()
 
-	if err := watcher.Add(app.ConfigPath()); err != nil {
-		return fmt.Errorf("watch config file: %w", err)
+	// 监听配置文件所在目录，而不是文件本身（跨平台更可靠）
+	if err := watcher.Add(configDir); err != nil {
+		return fmt.Errorf("watch config dir %s: %w", configDir, err)
 	}
 
-	log.Printf("[config] watching %s for changes", app.ConfigPath())
+	log.Printf("[config] watching %s for changes", configPath)
 	return nil
 }
 

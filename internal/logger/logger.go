@@ -3,6 +3,7 @@ package logger
 import (
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -68,18 +69,37 @@ func NewAuditLogger() (*AuditLogger, error) {
 	return &AuditLogger{db: db}, nil
 }
 
-// Log 记录操作日志
+// Log 记录操作日志（同时输出到 stderr 控制台）
 func (al *AuditLogger) Log(entry LogEntry) error {
 	if len(entry.SQL) > 4096 {
 		entry.SQL = entry.SQL[:4096] + "..."
 	}
 
+	// 写入 SQLite
 	_, err := al.db.Exec(
 		`INSERT INTO audit_log (timestamp, database, action, sql, result, error_message, duration_ms)
 		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
 		entry.Timestamp, entry.Database, entry.Action, entry.SQL,
 		entry.Result, entry.ErrorMessage, entry.DurationMs,
 	)
+
+	// 控制台输出（stderr，不干扰 stdio MCP 协议）
+	statusIcon := "✓"
+	if entry.Result == "error" {
+		statusIcon = "✗"
+	}
+	log.Printf("[audit] %s %s/%s | %s %s | %dms",
+		statusIcon,
+		entry.Database,
+		entry.Action,
+		entry.Result,
+		truncate(entry.SQL, 120),
+		entry.DurationMs,
+	)
+	if entry.ErrorMessage != "" {
+		log.Printf("[audit]   error: %s", entry.ErrorMessage)
+	}
+
 	return err
 }
 
@@ -126,4 +146,11 @@ func (al *AuditLogger) Close() error {
 		return al.db.Close()
 	}
 	return nil
+}
+
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }

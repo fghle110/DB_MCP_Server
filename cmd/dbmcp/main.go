@@ -43,7 +43,7 @@ func main() {
 	dm := database.NewDriverManager()
 	cfg := app.Config()
 	for name, dbCfg := range cfg.Databases {
-		if err := dm.Register(name, dbCfg.Driver, dbCfg.DSN); err != nil {
+		if err := dm.Register(name, dbCfg.Driver, dbCfg); err != nil {
 			log.Printf("[warn] failed to register database %s: %v", name, err)
 		}
 	}

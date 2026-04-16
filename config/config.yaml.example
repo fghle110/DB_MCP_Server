@@ -1,16 +1,76 @@
 # dbmcp configuration example
 # Copy to ~/.dbmcp/config.yaml and modify as needed
+#
+# Two configuration styles are supported:
+#   1. DSN string (simple)     - use the 'dsn' field
+#   2. Structured fields (recommended) - use host/port/username/password/database/options
 
 databases:
-  my_mysql:
+  # --- MySQL (structured) ---
+  mysql:
     driver: mysql
-    dsn: "user:password@tcp(localhost:3306)/dbname?parseTime=true"
-  my_postgres:
+    host: localhost
+    port: 3306
+    username: root
+    password: ""
+    database: ""
+    options:
+      parseTime: "true"
+      charset: utf8mb4
+
+  # --- MySQL (DSN string) ---
+  # mysql_dsn:
+  #   driver: mysql
+  #   dsn: "root:password@tcp(localhost:3306)/mydb?parseTime=true"
+
+  # --- PostgreSQL (structured) ---
+  postgres:
     driver: postgres
-    dsn: "postgres://user:password@localhost:5432/dbname?sslmode=disable"
-  my_sqlite:
+    host: localhost
+    port: 5432
+    username: postgres
+    password: ""
+    database: postgres
+    options:
+      sslmode: disable
+
+  # --- PostgreSQL (DSN string) ---
+  # postgres_dsn:
+  #   driver: postgres
+  #   dsn: "postgres://postgres:password@localhost:5432/mydb?sslmode=disable"
+
+  # --- SQLite ---
+  sqlite:
     driver: sqlite
-    dsn: "/path/to/database.db"
+    dsn: "/tmp/test.db"
+
+  # --- Additional versioned databases (uncomment as needed) ---
+  # mysql57:
+  #   driver: mysql
+  #   host: localhost
+  #   port: 5370
+  #   username: root
+  #   password: ""
+  # mysql80:
+  #   driver: mysql
+  #   host: localhost
+  #   port: 8306
+  #   username: root
+  #   password: ""
+  # pg13:
+  #   driver: postgres
+  #   host: localhost
+  #   port: 6432
+  #   username: postgres
+  #   password: ""
+  #   database: postgres
+  # pg15:
+  #   driver: postgres
+  #   host: localhost
+  #   port: 6433
+  #   username: postgres
+  #   password: ""
+  #   database: postgres
 
 permissions:
   read_only: false

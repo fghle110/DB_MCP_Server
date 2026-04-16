@@ -15,7 +15,17 @@
       "Bash(GOPROXY=https://goproxy.cn,direct go get github.com/go-sql-driver/mysql)",
       "Bash(GOPROXY=https://goproxy.cn,direct go get github.com/jackc/pgx/v5)",
       "Bash(GOPROXY=https://goproxy.cn,direct go get github.com/mattn/go-sqlite3)",
-      "Bash(GOPROXY=https://goproxy.cn,direct go mod tidy)"
+      "Bash(GOPROXY=https://goproxy.cn,direct go mod tidy)",
+      "Bash(where gcc *)",
+      "mcp__dbmcp__list_databases",
+      "mcp__dbmcp__list_tables",
+      "mcp__dbmcp__describe_table",
+      "mcp__dbmcp__execute_update",
+      "mcp__dbmcp__execute_query",
+      "mcp__dbmcp__config_status"
     ]
+  },
+  "enabledPlugins": {
+    "gopls-lsp@claude-plugins-official": true
   }
 }

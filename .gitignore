@@ -1,0 +1,29 @@
+# Binaries
+dbmcp
+dbmcp.exe
+*.exe
+
+# Build output
+/dist/
+/build/
+
+# Go
+/vendor/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Local config / audit db (contains sensitive data)
+~/.dbmcp/config.yaml.bak
+~/.dbmcp/audit.db
+
+# Test coverage
+coverage.out
