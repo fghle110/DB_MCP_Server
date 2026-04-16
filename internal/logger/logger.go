@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // AuditLogger 操作审计日志
@@ -42,7 +42,7 @@ func NewAuditLogger() (*AuditLogger, error) {
 		return nil, fmt.Errorf("create audit log dir: %w", err)
 	}
 
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("open audit log db: %w", err)
 	}

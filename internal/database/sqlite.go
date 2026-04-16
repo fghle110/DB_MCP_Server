@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // SQLiteDriver SQLite 数据库驱动
@@ -20,7 +20,7 @@ func NewSQLiteDriver() *SQLiteDriver {
 
 // Connect 连接 SQLite
 func (d *SQLiteDriver) Connect(dsn string) error {
-	db, err := sql.Open("sqlite3", dsn)
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return err
 	}
@@ -49,8 +49,8 @@ func (d *SQLiteDriver) Query(ctx context.Context, sqlStr string) (*QueryResult, 
 
 	result := &QueryResult{Columns: columns}
 	for rows.Next() {
-		values := make([]interface{}, len(columns))
-		valuePtrs := make([]interface{}, len(columns))
+		values := make([]any, len(columns))
+		valuePtrs := make([]any, len(columns))
 		for i := range values {
 			valuePtrs[i] = &values[i]
 		}
@@ -107,9 +107,9 @@ func (d *SQLiteDriver) DescribeTable(ctx context.Context, database, table string
 		var cid int
 		var notnull int
 		var pk int
-		var dfltValue sql.NullString
+		var dfltValue any
 		var c Column
-		if err := rows.Scan(&cid, &c.Name, &c.Type, &dfltValue, &notnull, &pk); err != nil {
+		if err := rows.Scan(&cid, &c.Name, &c.Type, &notnull, &dfltValue, &pk); err != nil {
 			return nil, err
 		}
 		if notnull == 0 {
