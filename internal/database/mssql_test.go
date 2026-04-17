@@ -74,7 +74,14 @@ func TestMSSQL_InsertAndSelect(t *testing.T) {
 	if len(result.Rows) != 1 {
 		t.Fatalf("expected 1 row, got %d", len(result.Rows))
 	}
-	name := string(result.Rows[0][1].([]byte))
+	nameVal := result.Rows[0][1]
+	name := ""
+	switch v := nameVal.(type) {
+	case []byte:
+		name = string(v)
+	case string:
+		name = v
+	}
 	if name != "Alice" {
 		t.Errorf("expected name 'Alice', got %v", name)
 	}
