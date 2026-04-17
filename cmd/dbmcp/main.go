@@ -42,13 +42,14 @@ func main() {
 
 	dm := database.NewDriverManager()
 	cfg := app.Config()
-	for name, dbCfg := range cfg.Databases {
+	for name, dbCfg := range cfg.DatabaseGroups.AllDatabases() {
 		if err := dm.Register(name, dbCfg.Driver, dbCfg); err != nil {
 			log.Printf("[warn] failed to register database %s: %v", name, err)
 		}
 	}
 
-	perm := permission.NewChecker(cfg.Permissions)
+	perm := permission.NewChecker(cfg.PermissionsGroup.Relational)
+	perm.UpdateNosql(cfg.PermissionsGroup.Nosql)
 	guard := security.NewSQLGuard(security.MaxSQLLength)
 
 	auditLog, err := logger.NewAuditLogger()
@@ -58,8 +59,9 @@ func main() {
 
 	err = config.StartWatcher(app, func() {
 		newCfg := app.Config()
-		dm.SyncFromConfig(newCfg.Databases)
-		perm.Update(newCfg.Permissions)
+		dm.SyncFromConfig(newCfg.DatabaseGroups.AllDatabases())
+		perm.Update(newCfg.PermissionsGroup.Relational)
+		perm.UpdateNosql(newCfg.PermissionsGroup.Nosql)
 		log.Println("[config] hot-reload applied")
 	})
 	if err != nil {

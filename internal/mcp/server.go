@@ -141,6 +141,48 @@ func (d *DBMCPServer) registerTools() {
 		),
 		d.handleRollback,
 	)
+
+	// Redis 工具
+	d.srv.AddTool(
+		mcp.NewTool("redis_command",
+			mcp.WithDescription("Execute a Redis command"),
+			mcp.WithString("database", mcp.Required(), mcp.Description("Database name")),
+			mcp.WithString("cmd", mcp.Required(), mcp.Description("Redis command, e.g. 'GET mykey'")),
+			mcp.WithNumber("db", mcp.Description("Redis logical database (0-15, default 0)")),
+		),
+		d.handleRedisCommand,
+	)
+
+	d.srv.AddTool(
+		mcp.NewTool("redis_scan",
+			mcp.WithDescription("Safely scan Redis keys using SCAN"),
+			mcp.WithString("database", mcp.Required(), mcp.Description("Database name")),
+			mcp.WithString("pattern", mcp.Description("Key pattern (default '*')")),
+			mcp.WithNumber("limit", mcp.Description("Max keys to return (default 50)")),
+			mcp.WithNumber("db", mcp.Description("Redis logical database (0-15, default 0)")),
+		),
+		d.handleRedisScan,
+	)
+
+	d.srv.AddTool(
+		mcp.NewTool("redis_info",
+			mcp.WithDescription("Get Redis server info"),
+			mcp.WithString("database", mcp.Required(), mcp.Description("Database name")),
+			mcp.WithString("section", mcp.Description("Info section (default 'default')")),
+			mcp.WithNumber("db", mcp.Description("Redis logical database (0-15, default 0)")),
+		),
+		d.handleRedisInfo,
+	)
+
+	d.srv.AddTool(
+		mcp.NewTool("redis_describe",
+			mcp.WithDescription("Describe a Redis key (type, TTL, value)"),
+			mcp.WithString("database", mcp.Required(), mcp.Description("Database name")),
+			mcp.WithString("key", mcp.Required(), mcp.Description("Redis key")),
+			mcp.WithNumber("db", mcp.Description("Redis logical database (0-15, default 0)")),
+		),
+		d.handleRedisDescribe,
+	)
 }
 
 // getArgs 从 CallToolRequest 中提取参数 map
@@ -524,4 +566,179 @@ func isHighRiskAction(action string, sql string) bool {
 		}
 	}
 	return false
+}
+
+func (d *DBMCPServer) handleRedisCommand(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args := getArgs(req)
+	dbName := strArg(args, "database")
+	cmdStr := strArg(args, "cmd")
+	dbNum := int(numArg(args, "db"))
+
+	// 解析命令
+	command, _ := database.ParseRedisCommand(cmdStr)
+	if command == "" {
+		return mcp.NewToolResultError("empty command"), nil
+	}
+
+	// 安全检查
+	if err := d.guard.CheckSQL(cmdStr); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("security check failed: %v", err)), nil
+	}
+
+	// 权限校验
+	key := security.ExtractRedisKey(cmdStr)
+	if err := d.perm.CheckRedisCommand(command, key); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("permission denied: %v", err)), nil
+	}
+
+	drv, err := d.dm.Get(dbName)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	// 切换 db
+	if dbNum > 0 {
+		selectCmd := fmt.Sprintf("SELECT %d", dbNum)
+		if _, err := drv.Exec(ctx, selectCmd); err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("failed to select db %d: %v", dbNum, err)), nil
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	result, err := drv.Exec(ctx, cmdStr)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	return mcp.NewToolResultText(fmt.Sprintf("OK. Result: %d", result)), nil
+}
+
+func (d *DBMCPServer) handleRedisScan(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args := getArgs(req)
+	dbName := strArg(args, "database")
+	pattern := strArg(args, "pattern")
+	if pattern == "" {
+		pattern = "*"
+	}
+	limit := int(numArg(args, "limit"))
+	if limit == 0 {
+		limit = 50
+	}
+	dbNum := int(numArg(args, "db"))
+
+	// 权限校验
+	if err := d.perm.CheckRedisCommand("SCAN", ""); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("permission denied: %v", err)), nil
+	}
+
+	drv, err := d.dm.Get(dbName)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	// 切换 db
+	if dbNum > 0 {
+		selectCmd := fmt.Sprintf("SELECT %d", dbNum)
+		if _, err := drv.Exec(ctx, selectCmd); err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("failed to select db %d: %v", dbNum, err)), nil
+		}
+	}
+
+	// 使用类型断言调用 RedisDriver 的 Scan 方法
+	redisDrv, ok := drv.(*database.RedisDriver)
+	if !ok {
+		return mcp.NewToolResultError("not a Redis driver"), nil
+	}
+
+	var keys []string
+	cursor := uint64(0)
+	for {
+		k, nextCursor, err := redisDrv.Scan(ctx, cursor, pattern, 100)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		keys = append(keys, k...)
+		if len(keys) >= limit {
+			keys = keys[:limit]
+			break
+		}
+		cursor = nextCursor
+		if cursor == 0 {
+			break
+		}
+	}
+
+	if len(keys) == 0 {
+		return mcp.NewToolResultText(fmt.Sprintf("No keys matching pattern '%s'.", pattern)), nil
+	}
+	return mcp.NewToolResultText(fmt.Sprintf("Keys matching '%s':\n- %s", pattern, joinStrings(keys, "\n- "))), nil
+}
+
+func (d *DBMCPServer) handleRedisInfo(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args := getArgs(req)
+	dbName := strArg(args, "database")
+	section := strArg(args, "section")
+
+	// 权限校验
+	if err := d.perm.CheckRedisCommand("INFO", ""); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("permission denied: %v", err)), nil
+	}
+
+	drv, err := d.dm.Get(dbName)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	redisDrv, ok := drv.(*database.RedisDriver)
+	if !ok {
+		return mcp.NewToolResultError("not a Redis driver"), nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	info, err := redisDrv.ClientInfo(ctx, section)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	return mcp.NewToolResultText(info), nil
+}
+
+func (d *DBMCPServer) handleRedisDescribe(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	args := getArgs(req)
+	dbName := strArg(args, "database")
+	key := strArg(args, "key")
+	dbNum := int(numArg(args, "db"))
+
+	drv, err := d.dm.Get(dbName)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	if dbNum > 0 {
+		selectCmd := fmt.Sprintf("SELECT %d", dbNum)
+		if _, err := drv.Exec(ctx, selectCmd); err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("failed to select db %d: %v", dbNum, err)), nil
+		}
+	}
+
+	columns, err := drv.DescribeTable(ctx, dbName, key)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+
+	var result string
+	for _, c := range columns {
+		result += fmt.Sprintf("%s: %s\n", c.Name, c.Type)
+	}
+	return mcp.NewToolResultText(result), nil
 }
