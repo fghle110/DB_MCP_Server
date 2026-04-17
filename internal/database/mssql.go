@@ -167,7 +167,7 @@ func (d *MSSQLDriver) ListDatabases(ctx context.Context) ([]string, error) {
 // ListTables 列出表
 func (d *MSSQLDriver) ListTables(ctx context.Context, database string) ([]string, error) {
 	rows, err := d.db.QueryContext(ctx,
-		"SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_CATALOG = N'"+database+"'")
+		"SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE'")
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +195,7 @@ func (d *MSSQLDriver) DescribeTable(ctx context.Context, database, table string)
 		     JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE ku ON tc.CONSTRAINT_NAME = ku.CONSTRAINT_NAME
 		     WHERE tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
 		 ) pk ON c.TABLE_CATALOG = pk.TABLE_CATALOG AND c.TABLE_NAME = pk.TABLE_NAME AND c.COLUMN_NAME = pk.COLUMN_NAME
-		 WHERE c.TABLE_CATALOG = N'`+database+`' AND c.TABLE_NAME = N'`+table+`'
+		 WHERE c.TABLE_NAME = N'`+table+`'
 		 ORDER BY c.ORDINAL_POSITION`)
 	if err != nil {
 		return nil, err
