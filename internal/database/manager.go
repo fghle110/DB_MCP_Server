@@ -331,6 +331,12 @@ func buildDmDSN(cfg config.DatabaseConfig) string {
 		}
 		opts.Set(k, v)
 	}
+	// 达梦默认启用 autocommit，为支持事务需要关闭
+	if cfg.Driver == "dm" || cfg.Driver == "dmdbms" || cfg.Driver == "dameng" {
+		if _, ok := opts["autoCommit"]; !ok {
+			opts.Set("autoCommit", "0")
+		}
+	}
 	if encoded := opts.Encode(); encoded != "" {
 		dsn += "?" + encoded
 	}

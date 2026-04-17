@@ -11,9 +11,8 @@ import (
 
 // DmDriver 达梦数据库驱动
 type DmDriver struct {
-	db   *sql.DB
-	conn *sql.Conn
-	tx   *sql.Tx
+	db *sql.DB
+	tx *sql.Tx
 }
 
 // NewDmDriver 创建达梦驱动实例
@@ -111,12 +110,12 @@ func (d *DmDriver) QueryWithParams(ctx context.Context, sqlStr string, params []
 }
 
 func (d *DmDriver) execInTx(ctx context.Context, sqlStr string) (int64, error) {
-	if d.conn == nil {
-		return 0, fmt.Errorf("no connection available for transaction")
+	if d.tx == nil {
+		return 0, fmt.Errorf("no transaction in progress")
 	}
-	res, err := d.conn.ExecContext(ctx, sqlStr)
+	res, err := d.tx.ExecContext(ctx, sqlStr)
 	if err != nil {
-		return 0, fmt.Errorf("exec in conn failed: %w", err)
+		return 0, fmt.Errorf("exec in tx failed: %w", err)
 	}
 	affected, _ := res.RowsAffected()
 	return affected, nil
@@ -211,10 +210,6 @@ func (d *DmDriver) Close() error {
 		_ = d.tx.Rollback()
 		d.tx = nil
 	}
-	if d.conn != nil {
-		_ = d.conn.Close()
-		d.conn = nil
-	}
 	if d.db != nil {
 		return d.db.Close()
 	}
@@ -229,14 +224,8 @@ func (d *DmDriver) BeginTx(ctx context.Context) error {
 	if d.tx != nil {
 		return fmt.Errorf("transaction already in progress")
 	}
-	conn, err := d.db.Conn(ctx)
+	tx, err := d.db.BeginTx(ctx, nil)
 	if err != nil {
-		return fmt.Errorf("get connection: %w", err)
-	}
-	d.conn = conn
-	tx, err := conn.BeginTx(ctx, nil)
-	if err != nil {
-		d.conn = nil
 		return fmt.Errorf("begin tx: %w", err)
 	}
 	d.tx = tx
@@ -250,15 +239,7 @@ func (d *DmDriver) Commit() error {
 	}
 	tx := d.tx
 	d.tx = nil
-	conn := d.conn
-	d.conn = nil
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	if conn != nil {
-		return conn.Close()
-	}
-	return nil
+	return tx.Commit()
 }
 
 // Rollback 回滚事务
@@ -268,13 +249,5 @@ func (d *DmDriver) Rollback() error {
 	}
 	tx := d.tx
 	d.tx = nil
-	conn := d.conn
-	d.conn = nil
-	if err := tx.Rollback(); err != nil {
-		return err
-	}
-	if conn != nil {
-		return conn.Close()
-	}
-	return nil
+	return tx.Rollback()
 }
