@@ -101,7 +101,7 @@ func (d *MSSQLDriver) execSingle(ctx context.Context, sqlStr string) (int64, err
 	return affected, nil
 }
 
-// Close 关闭连接（TODO: Tasks 4-5）
+// Close 关闭连接
 func (d *MSSQLDriver) Close() error {
 	if d.tx != nil {
 		_ = d.tx.Rollback()
@@ -113,7 +113,7 @@ func (d *MSSQLDriver) Close() error {
 	return nil
 }
 
-// BeginTx 开始事务（TODO: Tasks 4-5）
+// BeginTx 开始事务
 func (d *MSSQLDriver) BeginTx(ctx context.Context) error {
 	if d.tx != nil {
 		return fmt.Errorf("transaction already in progress")
@@ -126,7 +126,7 @@ func (d *MSSQLDriver) BeginTx(ctx context.Context) error {
 	return nil
 }
 
-// Commit 提交事务（TODO: Tasks 4-5）
+// Commit 提交事务
 func (d *MSSQLDriver) Commit() error {
 	if d.tx == nil {
 		return fmt.Errorf("no transaction in progress")
@@ -136,7 +136,7 @@ func (d *MSSQLDriver) Commit() error {
 	return tx.Commit()
 }
 
-// Rollback 回滚事务（TODO: Tasks 4-5）
+// Rollback 回滚事务
 func (d *MSSQLDriver) Rollback() error {
 	if d.tx == nil {
 		return fmt.Errorf("no transaction in progress")
@@ -146,9 +146,9 @@ func (d *MSSQLDriver) Rollback() error {
 	return err
 }
 
-// ListDatabases 列出数据库（TODO: Tasks 4-5）
+// ListDatabases 列出数据库
 func (d *MSSQLDriver) ListDatabases(ctx context.Context) ([]string, error) {
-	rows, err := d.db.QueryContext(ctx, "SELECT name FROM sys.databases WHERE state = 0")
+	rows, err := d.db.QueryContext(ctx, "SELECT name FROM sys.databases WHERE state_desc = 'ONLINE'")
 	if err != nil {
 		return nil, err
 	}
@@ -164,12 +164,10 @@ func (d *MSSQLDriver) ListDatabases(ctx context.Context) ([]string, error) {
 	return databases, nil
 }
 
-// ListTables 列出表（TODO: Tasks 4-5）
+// ListTables 列出表
 func (d *MSSQLDriver) ListTables(ctx context.Context, database string) ([]string, error) {
-	query := fmt.Sprintf(`
-		SELECT TABLE_NAME FROM %s.INFORMATION_SCHEMA.TABLES
-		WHERE TABLE_TYPE = 'BASE TABLE'`, database)
-	rows, err := d.db.QueryContext(ctx, query)
+	rows, err := d.db.QueryContext(ctx,
+		"SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_CATALOG = N'"+database+"'")
 	if err != nil {
 		return nil, err
 	}
@@ -185,23 +183,20 @@ func (d *MSSQLDriver) ListTables(ctx context.Context, database string) ([]string
 	return tables, nil
 }
 
-// DescribeTable 查看表结构（TODO: Tasks 4-5）
+// DescribeTable 查看表结构
 func (d *MSSQLDriver) DescribeTable(ctx context.Context, database, table string) ([]Column, error) {
-	query := fmt.Sprintf(`
-		SELECT COLUMN_NAME, DATA_TYPE,
-			CASE WHEN IS_NULLABLE = 'YES' THEN 'YES' ELSE 'NO' END AS IS_NULLABLE,
-			COALESCE((
-				SELECT 'PRI' FROM %s.INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
-				JOIN %s.INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu
-					ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
-				WHERE tc.TABLE_NAME = '%s'
-					AND tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
-					AND kcu.COLUMN_NAME = c.COLUMN_NAME
-			), '') AS KEY
-		FROM %s.INFORMATION_SCHEMA.COLUMNS c
-		WHERE TABLE_NAME = '%s'
-		ORDER BY ORDINAL_POSITION`, database, database, table, database, table)
-	rows, err := d.db.QueryContext(ctx, query)
+	rows, err := d.db.QueryContext(ctx,
+		`SELECT c.COLUMN_NAME, c.DATA_TYPE, c.IS_NULLABLE,
+		        CASE WHEN pk.COLUMN_NAME IS NOT NULL THEN 'PRI' ELSE '' END AS COLUMN_KEY
+		 FROM INFORMATION_SCHEMA.COLUMNS c
+		 LEFT JOIN (
+		     SELECT ku.TABLE_CATALOG, ku.TABLE_NAME, ku.COLUMN_NAME
+		     FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
+		     JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE ku ON tc.CONSTRAINT_NAME = ku.CONSTRAINT_NAME
+		     WHERE tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
+		 ) pk ON c.TABLE_CATALOG = pk.TABLE_CATALOG AND c.TABLE_NAME = pk.TABLE_NAME AND c.COLUMN_NAME = pk.COLUMN_NAME
+		 WHERE c.TABLE_CATALOG = N'`+database+`' AND c.TABLE_NAME = N'`+table+`'
+		 ORDER BY c.ORDINAL_POSITION`)
 	if err != nil {
 		return nil, err
 	}
