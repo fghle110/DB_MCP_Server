@@ -3,17 +3,21 @@ module github.com/dbmcp/dbmcp
 go 1.26.2
 
 require (
+	dm v0.0.0-00010101000000-000000000000
 	github.com/fsnotify/fsnotify v1.9.0
 	github.com/go-sql-driver/mysql v1.9.3
 	github.com/jackc/pgx/v5 v5.9.1
 	github.com/mark3labs/mcp-go v0.48.0
 	github.com/microsoft/go-mssqldb v1.7.0
+	github.com/redis/go-redis/v9 v9.18.0
 	github.com/testcontainers/testcontainers-go/modules/mssql v0.42.0
 	github.com/testcontainers/testcontainers-go/modules/mysql v0.41.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.41.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.48.2
 )
+
+replace dm => ./third_party/dm/dm
 
 require (
 	dario.cat/mergo v1.0.2 // indirect
@@ -40,6 +44,7 @@ require (
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
+	github.com/golang/snappy v0.0.1 // indirect
 	github.com/google/jsonschema-go v0.4.2 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
@@ -63,7 +68,6 @@ require (
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
-	github.com/redis/go-redis/v9 v9.18.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/shirou/gopsutil/v4 v4.26.3 // indirect
 	github.com/sirupsen/logrus v1.9.4 // indirect

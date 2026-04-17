@@ -111,7 +111,7 @@ func NormalizeConfig(cfg *AppConfig) {
 				continue
 			}
 			switch db.Driver {
-			case "mysql", "postgres", "postgresql", "sqlite", "sqlite3", "mssql", "sqlserver":
+			case "mysql", "postgres", "postgresql", "sqlite", "sqlite3", "mssql", "sqlserver", "dm", "dmdbms", "dameng":
 				cfg.DatabaseGroups.Relational[name] = db
 			case "redis":
 				cfg.DatabaseGroups.Nosql[name] = db
