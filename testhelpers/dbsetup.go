@@ -3,9 +3,11 @@ package testhelpers
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os/exec"
 	"testing"
 
+	"github.com/testcontainers/testcontainers-go/modules/mssql"
 	"github.com/testcontainers/testcontainers-go/modules/mysql"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
 )
@@ -77,6 +79,35 @@ func SetupPostgresContainer(ctx context.Context) (string, func(), error) {
 	}
 
 	dsn := fmt.Sprintf("postgres://test:test@%s:%s/testdb?sslmode=disable", host, port.Port())
+
+	cleanup := func() {
+		_ = ctr.Terminate(ctx)
+	}
+
+	return dsn, cleanup, nil
+}
+
+// SetupMSSQLContainer starts a MSSQL Server test container, returns DSN and cleanup function
+func SetupMSSQLContainer(ctx context.Context) (string, func(), error) {
+	ctr, err := mssql.Run(ctx, "mcr.microsoft.com/mssql/server:2022-latest",
+		mssql.WithAcceptEULA(),
+		mssql.WithPassword("Test@12345"),
+	)
+	if err != nil {
+		return "", nil, fmt.Errorf("start mssql container: %w", err)
+	}
+
+	host, err := ctr.Host(ctx)
+	if err != nil {
+		return "", nil, fmt.Errorf("get mssql host: %w", err)
+	}
+	port, err := ctr.MappedPort(ctx, "1433/tcp")
+	if err != nil {
+		return "", nil, fmt.Errorf("get mssql port: %w", err)
+	}
+
+	dsn := fmt.Sprintf("sqlserver://sa:%s@%s:%s?database=master",
+		url.QueryEscape("Test@12345"), host, port.Port())
 
 	cleanup := func() {
 		_ = ctr.Terminate(ctx)
