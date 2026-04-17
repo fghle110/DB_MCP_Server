@@ -1,3 +1,5 @@
+//go:build dm
+
 package database
 
 import (
