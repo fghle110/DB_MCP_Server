@@ -248,3 +248,12 @@ func ExtractActionType(sql string) string {
 	}
 	return "OTHER"
 }
+
+// ExtractRedisKey 从 Redis 命令中提取 key（第一个参数）
+func ExtractRedisKey(cmd string) string {
+	fields := strings.Fields(cmd)
+	if len(fields) < 2 {
+		return ""
+	}
+	return fields[1]
+}
