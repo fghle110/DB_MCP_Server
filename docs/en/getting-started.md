@@ -52,7 +52,7 @@ mkdir -p ~/.dbmcp
 nano ~/.dbmcp/config.yaml
 ```
 
-Minimal config example:
+Minimal config example (PostgreSQL):
 
 ```yaml
 databases:
@@ -74,6 +74,85 @@ permissions:
 ```
 
 > See [Configuration Guide](configuration.md) for details.
+
+### Database Configuration Examples
+
+#### MySQL
+
+```yaml
+databases:
+  mysql:
+    driver: mysql
+    host: localhost
+    port: 3306
+    username: root
+    password: "your_password"
+    database: mydb
+    options:
+      parseTime: "true"
+```
+
+Or using a DSN string:
+
+```yaml
+databases:
+  mysql:
+    driver: mysql
+    dsn: "root:password@tcp(localhost:3306)/mydb?parseTime=true"
+```
+
+#### MSSQL Server
+
+```yaml
+databases:
+  mssql:
+    driver: mssql
+    host: localhost
+    port: 1433
+    username: sa
+    password: "YourPassword123"
+    database: AdventureWorks
+    options:
+      encrypt: "false"
+      connection timeout: "30"
+```
+
+Or using a DSN string:
+
+```yaml
+databases:
+  mssql:
+    driver: mssql
+    dsn: "sqlserver://sa:YourPassword123@localhost:1433?database=AdventureWorks&encrypt=false"
+```
+
+> **Note**: The `driver` field accepts either `mssql` or `sqlserver` — both are equivalent.
+
+#### PostgreSQL
+
+```yaml
+databases:
+  postgres:
+    driver: postgres
+    host: localhost
+    port: 5432
+    username: postgres
+    password: "your_password"
+    database: postgres
+    options:
+      sslmode: disable
+```
+
+#### SQLite
+
+```yaml
+databases:
+  sqlite:
+    driver: sqlite
+    dsn: "C:/data/mydb.db"
+```
+
+> Multiple databases can be configured together under the same `databases` node. dbmcp will automatically connect to all valid entries.
 
 ### 5. Run
 
@@ -185,6 +264,7 @@ dbmcp uses a database-agnostic architecture via the `DatabaseDriver` interface. 
 | Relational | MySQL | ✓ Supported | 5.7 / 8.0+ |
 | Relational | PostgreSQL | ✓ Supported | 13 / 15 / 16 |
 | Relational | SQLite | ✓ Supported | Pure Go driver |
+| Relational | **MSSQL Server** | ✓ Supported | 2017 / 2019 / 2022 |
 | Time-Series | InfluxDB | 📋 Planned | Time-series queries & management |
 | Time-Series | TDengine | 📋 Planned | Chinese time-series database |
 | Time-Series | Prometheus | 📋 Planned | PromQL query support |
