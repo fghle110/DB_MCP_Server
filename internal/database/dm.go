@@ -11,8 +11,9 @@ import (
 
 // DmDriver 达梦数据库驱动
 type DmDriver struct {
-	db *sql.DB
-	tx *sql.Tx
+	db   *sql.DB
+	conn *sql.Conn
+	tx   *sql.Tx
 }
 
 // NewDmDriver 创建达梦驱动实例
@@ -110,29 +111,21 @@ func (d *DmDriver) QueryWithParams(ctx context.Context, sqlStr string, params []
 }
 
 func (d *DmDriver) execInTx(ctx context.Context, sqlStr string) (int64, error) {
-	if d.tx == nil {
-		return 0, fmt.Errorf("no transaction in progress")
+	if d.conn == nil {
+		return 0, fmt.Errorf("no connection available for transaction")
 	}
-	res, err := d.tx.ExecContext(ctx, sqlStr)
+	res, err := d.conn.ExecContext(ctx, sqlStr)
 	if err != nil {
-		return 0, fmt.Errorf("exec in tx failed: %w", err)
+		return 0, fmt.Errorf("exec in conn failed: %w", err)
 	}
 	affected, _ := res.RowsAffected()
 	return affected, nil
 }
 
 func (d *DmDriver) execSingle(ctx context.Context, sqlStr string) (int64, error) {
-	tx, err := d.db.BeginTx(ctx, nil)
+	// autocommit=0 模式下直接执行，不需要包装事务
+	res, err := d.db.ExecContext(ctx, sqlStr)
 	if err != nil {
-		return 0, err
-	}
-	res, execErr := tx.ExecContext(ctx, sqlStr)
-	if execErr != nil {
-		_ = tx.Rollback()
-		return 0, execErr
-	}
-	if err := tx.Commit(); err != nil {
-		_ = tx.Rollback()
 		return 0, err
 	}
 	affected, _ := res.RowsAffected()
@@ -210,6 +203,10 @@ func (d *DmDriver) Close() error {
 		_ = d.tx.Rollback()
 		d.tx = nil
 	}
+	if d.conn != nil {
+		_ = d.conn.Close()
+		d.conn = nil
+	}
 	if d.db != nil {
 		return d.db.Close()
 	}
@@ -224,8 +221,14 @@ func (d *DmDriver) BeginTx(ctx context.Context) error {
 	if d.tx != nil {
 		return fmt.Errorf("transaction already in progress")
 	}
-	tx, err := d.db.BeginTx(ctx, nil)
+	conn, err := d.db.Conn(ctx)
 	if err != nil {
+		return fmt.Errorf("get connection: %w", err)
+	}
+	d.conn = conn
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		d.conn = nil
 		return fmt.Errorf("begin tx: %w", err)
 	}
 	d.tx = tx
@@ -238,8 +241,13 @@ func (d *DmDriver) Commit() error {
 		return fmt.Errorf("no transaction in progress")
 	}
 	tx := d.tx
+	conn := d.conn
 	d.tx = nil
-	return tx.Commit()
+	d.conn = nil
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	return conn.Close()
 }
 
 // Rollback 回滚事务
@@ -248,6 +256,11 @@ func (d *DmDriver) Rollback() error {
 		return fmt.Errorf("no transaction in progress")
 	}
 	tx := d.tx
+	conn := d.conn
 	d.tx = nil
-	return tx.Rollback()
+	d.conn = nil
+	if err := tx.Rollback(); err != nil {
+		return err
+	}
+	return conn.Close()
 }
