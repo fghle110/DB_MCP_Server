@@ -137,6 +137,8 @@ func createDriver(driverType string) (DatabaseDriver, error) {
 		return NewSQLiteDriver(), nil
 	case "mssql", "sqlserver":
 		return NewMSSQLDriver(), nil
+	case "redis":
+		return NewRedisDriver(), nil
 	default:
 		return nil, fmt.Errorf("unsupported driver type: %s", driverType)
 	}
@@ -159,6 +161,8 @@ func buildDSN(driverType string, cfg config.DatabaseConfig) string {
 		return buildSQLiteDSN(cfg)
 	case "mssql", "sqlserver":
 		return buildMSSQLDSN(cfg)
+	case "redis":
+		return buildRedisDSN(cfg)
 	default:
 		return ""
 	}
@@ -270,4 +274,27 @@ func buildMSSQLDSN(cfg config.DatabaseConfig) string {
 		dsn += "&" + encoded
 	}
 	return dsn
+}
+
+// buildRedisDSN 组装 Redis DSN: redis://username:password@host:port/db
+func buildRedisDSN(cfg config.DatabaseConfig) string {
+	host := cfg.Host
+	if host == "" {
+		host = "localhost"
+	}
+	port := cfg.Port
+	if port == 0 {
+		port = 6379
+	}
+
+	dbNum := "0"
+	if v, ok := cfg.Options["db"]; ok {
+		dbNum = v
+	}
+
+	if cfg.Password != "" {
+		return fmt.Sprintf("redis://%s:%s@%s:%d/%s",
+			url.QueryEscape(cfg.Username), url.QueryEscape(cfg.Password), host, port, dbNum)
+	}
+	return fmt.Sprintf("redis://:%s@%s:%d/%s", url.QueryEscape(cfg.Password), host, port, dbNum)
 }
