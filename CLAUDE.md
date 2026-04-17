@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 
 ## 项目概述
 
-**dbmcp** — 一个用 Go 编写的数据库操作 MCP Server。通过模型上下文协议（stdio 传输）暴露 15 个工具，供 AI 工具与 MySQL、PostgreSQL、SQLite、Redis 数据库交互。支持多数据库连接、结构化配置、事务控制、配置热重载、SQL 注入防护和操作审计。
+**dbmcp** v0.2.0 — 一个用 Go 编写的数据库操作 MCP Server。通过模型上下文协议（stdio 传输）暴露 15 个工具，供 AI 工具与 MySQL、PostgreSQL、SQLite、Redis 数据库交互。支持多数据库连接、结构化配置、事务控制、配置热重载、SQL 注入防护和操作审计。
 
 ## 常用命令
 
