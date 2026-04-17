@@ -135,6 +135,8 @@ func createDriver(driverType string) (DatabaseDriver, error) {
 		return NewPostgresDriver(), nil
 	case "sqlite", "sqlite3":
 		return NewSQLiteDriver(), nil
+	case "mssql", "sqlserver":
+		return NewMSSQLDriver(), nil
 	default:
 		return nil, fmt.Errorf("unsupported driver type: %s", driverType)
 	}
@@ -155,6 +157,8 @@ func buildDSN(driverType string, cfg config.DatabaseConfig) string {
 		return buildPostgresDSN(cfg)
 	case "sqlite", "sqlite3":
 		return buildSQLiteDSN(cfg)
+	case "mssql", "sqlserver":
+		return buildMSSQLDSN(cfg)
 	default:
 		return ""
 	}
@@ -233,4 +237,37 @@ func buildSQLiteDSN(cfg config.DatabaseConfig) string {
 	}
 	// 默认
 	return ":memory:"
+}
+
+// buildMSSQLDSN 组装 MSSQL DSN: sqlserver://user:pass@host:port?database=dbname&opts
+func buildMSSQLDSN(cfg config.DatabaseConfig) string {
+	host := cfg.Host
+	if host == "" {
+		host = "localhost"
+	}
+	port := cfg.Port
+	if port == 0 {
+		port = 1433
+	}
+	user := cfg.Username
+	if user == "" {
+		user = "sa"
+	}
+	dbname := cfg.Database
+	if dbname == "" {
+		dbname = "master"
+	}
+
+	dsn := fmt.Sprintf("sqlserver://%s:%s@%s:%d?database=%s",
+		url.QueryEscape(user), url.QueryEscape(cfg.Password), host, port, url.QueryEscape(dbname))
+
+	// 组装 options
+	opts := make(url.Values)
+	for k, v := range cfg.Options {
+		opts.Set(k, v)
+	}
+	if encoded := opts.Encode(); encoded != "" {
+		dsn += "&" + encoded
+	}
+	return dsn
 }
