@@ -44,7 +44,8 @@
       "Bash(docker stop *)",
       "Bash(docker rm *)",
       "Bash(MSYS_NO_PATHCONV=1 docker exec mssql-test *)",
-      "mcp__dbmcp__commit"
+      "mcp__dbmcp__commit",
+      "Bash(git tag *)"
     ]
   },
   "enabledPlugins": {

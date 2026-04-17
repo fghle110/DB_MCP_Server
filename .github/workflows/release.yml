@@ -28,6 +28,25 @@ jobs:
       - name: Run tests
         run: go test ./... -v -race
 
+      - name: Generate doc changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$PREV_TAG" ]; then
+            echo "## Documentation Changes (${{ github.ref_name }})" >> CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            git diff --name-only "$PREV_TAG" HEAD -- docs/ README.md docs/zh/ docs/en/ | sort -u | while read -r file; do
+              if [ -f "$file" ]; then
+                changes=$(git diff --stat "$PREV_TAG" HEAD -- "$file")
+                if echo "$changes" | grep -q "|"; then
+                  insertions=$(git diff --shortstat "$PREV_TAG" HEAD -- "$file" | grep -oP '\d+(?= insertion)' || echo "0")
+                  deletions=$(git diff --shortstat "$PREV_TAG" HEAD -- "$file" | grep -oP '\d+(?= deletion)' || echo "0")
+                  echo "- **$file**: +${insertions:-0} -${deletions:-0}" >> CHANGELOG.md
+                fi
+              fi
+            done
+            echo "" >> CHANGELOG.md
+          fi
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
