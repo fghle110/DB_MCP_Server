@@ -596,10 +596,15 @@ func (d *DBMCPServer) handleRedisCommand(ctx context.Context, req mcp.CallToolRe
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
+	redisDrv, ok := drv.(*database.RedisDriver)
+	if !ok {
+		return mcp.NewToolResultError("not a Redis driver"), nil
+	}
+
 	// 切换 db
 	if dbNum > 0 {
 		selectCmd := fmt.Sprintf("SELECT %d", dbNum)
-		if _, err := drv.Exec(ctx, selectCmd); err != nil {
+		if _, err := redisDrv.Exec(ctx, selectCmd); err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("failed to select db %d: %v", dbNum, err)), nil
 		}
 	}
@@ -607,12 +612,12 @@ func (d *DBMCPServer) handleRedisCommand(ctx context.Context, req mcp.CallToolRe
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	result, err := drv.Exec(ctx, cmdStr)
+	resultText, err := redisDrv.ExecResult(ctx, cmdStr)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 
-	return mcp.NewToolResultText(fmt.Sprintf("OK. Result: %d", result)), nil
+	return mcp.NewToolResultText(resultText), nil
 }
 
 func (d *DBMCPServer) handleRedisScan(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

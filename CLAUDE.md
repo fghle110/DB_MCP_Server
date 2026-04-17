@@ -27,6 +27,9 @@ go test ./internal/mcp/... -v
 GOOS=linux GOARCH=amd64 go build -o build/dbmcp ./cmd/dbmcp
 GOOS=darwin GOARCH=arm64 go build -o build/dbmcp-darwin ./cmd/dbmcp
 
+# 启动 Redis（Docker）
+docker-compose -f docker/docker-compose.redis.yml up -d
+
 # 网络受限时配置代理
 GOPROXY=https://goproxy.cn,direct go get <package>
 ```
@@ -42,7 +45,7 @@ GOPROXY=https://goproxy.cn,direct go get <package>
 | `config/` | 配置加载（YAML）、结构化字段支持（host/port/username/password/database/options）、校验、fsnotify 热重载 |
 | `database/` | `DatabaseDriver` 接口 + `DriverManager` 连接池 + 4 种驱动实现（MySQL/PG/SQLite/Redis）+ 事务支持 |
 | `security/` | SQL 注入防护：关键字拦截、多语句检测（支持 `$$` dollar-quoted strings）、输入校验 |
-| `permission/` | 权限校验：只读模式、数据库白名单、表黑名单、操作白名单 |
+| `permission/` | 权限校验：只读模式、数据库白名单、表黑名单、操作白名单、Redis 命令白名单/key 黑名单 |
 | `logger/` | 审计日志，写入本地 SQLite（`~/.dbmcp/audit.db`），含 DSN 脱敏和高危操作标记 |
 | `mcp/` | MCP Server：注册 15 个工具，串联所有模块的安全/权限管道 |
 
@@ -75,49 +78,73 @@ GOPROXY=https://goproxy.cn,direct go get <package>
 3. **数据库驱动**（`database.DatabaseDriver`）— 执行查询，30 秒超时；写操作自动包装在事务中，失败自动回滚
 4. **审计日志**（`logger.AuditLogger`）— 记录操作至 SQLite，含 DSN 脱敏和高危标记
 
+Redis 命令走独立管道：安全检查 → 命令白名单校验（`permission.Checker.CheckRedisCommand`）→ key 黑名单校验 → `RedisDriver.ExecResult` 返回格式化结果 → 审计日志。
+
 ### 配置
 
-配置文件位于 `~/.dbmcp/config.yaml`，支持两种配置风格：
+配置文件位于 `~/.dbmcp/config.yaml`，使用按类型分组的配置结构：
 
 ```yaml
-# 方式一：结构化字段（推荐）
-databases:
-  mysql:
-    driver: mysql
-    host: localhost
-    port: 3306
-    username: root
-    password: ""
-    database: ""
-    options:
-      parseTime: "true"
-  postgres:
-    driver: postgres
-    host: localhost
-    port: 5432
-    username: postgres
-    password: ""
-    database: postgres
-    options:
-      sslmode: disable
+database_groups:
+  relational:
+    mysql:
+      driver: mysql
+      host: localhost
+      port: 3306
+      username: root
+      password: ""
+      database: ""
+      options:
+        parseTime: "true"
+    postgres:
+      driver: postgres
+      host: localhost
+      port: 5432
+      username: postgres
+      password: ""
+      database: postgres
+      options:
+        sslmode: disable
 
-# 方式二：DSN 字符串（向后兼容）
-  mysql_dsn:
-    driver: mysql
-    dsn: "root:pass@tcp(localhost:3306)/mydb?parseTime=true"
-
-# 方式三：NoSQL（Redis）
   nosql:
-    myredis:
+    local_redis:
       driver: redis
       host: localhost
       port: 6379
       password: ""
       options:
         db: "0"
+
+permissions_groups:
+  relational:
+    read_only: false
+    allowed_databases: ["*"]
+    allowed_actions:
+      - SELECT
+      - INSERT
+      - UPDATE
+      - DELETE
+  nosql:
+    read_only: false
+    allowed_commands:
+      - GET
+      - SET
+      - HGET
+      - HGETALL
+      - HSET
+      - LPUSH
+      - LRANGE
+      - SCAN
+      - INFO
+      - DEL
+      - EXISTS
+      - TTL
+      - TYPE
+      - PING
+    blocked_keys: []
 ```
 
-校验规则：至少需要一个有效数据库条目（driver + dsn 或 host 都存在）。空条目会被跳过。
+旧格式（扁平 `databases` map）仍然有效，加载时会自动迁移到分组结构。
 
 ### 配置热重载
 
@@ -136,6 +163,21 @@ databases:
 ### 安全模块
 
 `security/sql_guard.go` 支持 PostgreSQL `$$...$$` dollar-quoted strings，`$$` 内的 `;` 不被误判为多语句。
+
+### Redis 支持
+
+Redis 驱动（`database/redis.go`）实现 `DatabaseDriver` 接口，提供以下能力：
+
+- **命令执行** — `redis_command` 工具接收文本命令（如 `GET mykey`），通过 `ExecResult` 返回格式化结果
+- **返回格式** — `ExecResult` 将 Redis 原始响应转为可读文本：
+  - 字符串 → 直接返回（`"hello"`）
+  - 整数 → `(integer) 42`
+  - 数组 → 编号列表（`1) a\n2) b`）
+  - Hash 键值对 → `key: value` 格式
+  - nil → `(nil)`
+- **权限控制** — 命令白名单 + key 黑名单（通配符匹配）+ read_only 模式
+- **逻辑数据库** — 通过 `db` 参数切换 0-15
+- **不支持** — SQL 查询、事务、EVAL/SCRIPT 脚本、SUBSCRIBE 订阅
 
 ### 添加新数据库驱动
 

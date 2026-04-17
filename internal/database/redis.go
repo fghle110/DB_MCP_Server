@@ -195,3 +195,97 @@ func (d *RedisDriver) Scan(ctx context.Context, cursor uint64, pattern string, c
 	}
 	return d.client.Scan(ctx, cursor, pattern, count).Result()
 }
+
+// ExecResult 执行 Redis 命令并返回格式化结果
+func (d *RedisDriver) ExecResult(ctx context.Context, cmd string) (string, error) {
+	if d.client == nil {
+		return "", fmt.Errorf("not connected to redis")
+	}
+
+	command, args := ParseRedisCommand(cmd)
+	if command == "" {
+		return "", fmt.Errorf("empty command")
+	}
+
+	blockedCommands := []string{"EVAL", "EVALSHA", "SCRIPT", "MULTI", "EXEC", "DISCARD", "WATCH", "UNWATCH", "SUBSCRIBE", "PSUBSCRIBE", "MONITOR", "SYNC", "PSYNC", "DEBUG", "BGSAVE", "BGREWRITEAOF", "SAVE"}
+	for _, b := range blockedCommands {
+		if command == b {
+			return "", fmt.Errorf("command '%s' is not supported via redis_command tool", command)
+		}
+	}
+
+	allArgs := append([]string{command}, args...)
+	result := d.client.Do(ctx, interfaceSlice(allArgs)...)
+	if err := result.Err(); err != nil {
+		return "", fmt.Errorf("redis command '%s' failed: %w", command, err)
+	}
+
+	val, err := result.Result()
+	if err != nil {
+		return "", fmt.Errorf("redis command '%s' failed: %w", command, err)
+	}
+
+	return formatRedisResult(val), nil
+}
+
+// formatRedisResult 格式化 Redis 返回值为可读文本
+func formatRedisResult(val interface{}) string {
+	switch v := val.(type) {
+	case string:
+		return v
+	case int64:
+		return fmt.Sprintf("(integer) %d", v)
+	case float64:
+		return fmt.Sprintf("(float) %g", v)
+	case bool:
+		if v {
+			return "true"
+		}
+		return "false"
+	case []interface{}:
+		return formatArray(v)
+	case nil:
+		return "(nil)"
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+// formatArray 格式化数组结果
+func formatArray(arr []interface{}) string {
+	if len(arr) == 0 {
+		return "(empty array)"
+	}
+	// 判断是否为键值对格式（HGETALL 等返回）
+	if len(arr) > 0 && len(arr)%2 == 0 {
+		allStrings := true
+		for _, item := range arr {
+			if _, ok := item.(string); !ok {
+				allStrings = false
+				break
+			}
+		}
+		if allStrings {
+			var result string
+			for i := 0; i < len(arr); i += 2 {
+				key := arr[i].(string)
+				value := arr[i+1].(string)
+				result += fmt.Sprintf("%s: %s\n", key, value)
+			}
+			return strings.TrimSpace(result)
+		}
+	}
+	// 普通数组
+	var result string
+	for i, item := range arr {
+		switch v := item.(type) {
+		case string:
+			result += fmt.Sprintf("%d) %s\n", i+1, v)
+		case nil:
+			result += fmt.Sprintf("%d) (nil)\n", i+1)
+		default:
+			result += fmt.Sprintf("%d) %v\n", i+1, v)
+		}
+	}
+	return strings.TrimSpace(result)
+}
