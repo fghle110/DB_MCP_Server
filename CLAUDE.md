@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 
 ## 项目概述
 
-**dbmcp** — 一个用 Go 编写的数据库操作 MCP Server。通过模型上下文协议（stdio 传输）暴露 11 个工具，供 AI 工具与 MySQL、PostgreSQL、SQLite 数据库交互。支持多数据库连接、结构化配置、事务控制、配置热重载、SQL 注入防护和操作审计。
+**dbmcp** — 一个用 Go 编写的数据库操作 MCP Server。通过模型上下文协议（stdio 传输）暴露 15 个工具，供 AI 工具与 MySQL、PostgreSQL、SQLite、Redis 数据库交互。支持多数据库连接、结构化配置、事务控制、配置热重载、SQL 注入防护和操作审计。
 
 ## 常用命令
 
@@ -40,11 +40,11 @@ GOPROXY=https://goproxy.cn,direct go get <package>
 | 模块 | 职责 |
 |------|------|
 | `config/` | 配置加载（YAML）、结构化字段支持（host/port/username/password/database/options）、校验、fsnotify 热重载 |
-| `database/` | `DatabaseDriver` 接口 + `DriverManager` 连接池 + 3 种驱动实现（MySQL/PG/SQLite）+ 事务支持 |
+| `database/` | `DatabaseDriver` 接口 + `DriverManager` 连接池 + 4 种驱动实现（MySQL/PG/SQLite/Redis）+ 事务支持 |
 | `security/` | SQL 注入防护：关键字拦截、多语句检测（支持 `$$` dollar-quoted strings）、输入校验 |
 | `permission/` | 权限校验：只读模式、数据库白名单、表黑名单、操作白名单 |
 | `logger/` | 审计日志，写入本地 SQLite（`~/.dbmcp/audit.db`），含 DSN 脱敏和高危操作标记 |
-| `mcp/` | MCP Server：注册 11 个工具，串联所有模块的安全/权限管道 |
+| `mcp/` | MCP Server：注册 15 个工具，串联所有模块的安全/权限管道 |
 
 ### MCP 工具列表
 
@@ -61,6 +61,10 @@ GOPROXY=https://goproxy.cn,direct go get <package>
 | `begin_tx` | 开始事务 |
 | `commit` | 提交事务 |
 | `rollback` | 回滚事务 |
+| `redis_command` | 执行 Redis 命令 |
+| `redis_scan` | 安全扫描 key |
+| `redis_info` | 服务器状态 |
+| `redis_describe` | 查看 key 的类型/TTL/值 |
 
 ### 请求流程
 
@@ -101,6 +105,16 @@ databases:
   mysql_dsn:
     driver: mysql
     dsn: "root:pass@tcp(localhost:3306)/mydb?parseTime=true"
+
+# 方式三：NoSQL（Redis）
+  nosql:
+    myredis:
+      driver: redis
+      host: localhost
+      port: 6379
+      password: ""
+      options:
+        db: "0"
 ```
 
 校验规则：至少需要一个有效数据库条目（driver + dsn 或 host 都存在）。空条目会被跳过。
@@ -138,4 +152,4 @@ cmd/dbmcp/main.go (入口)
 
 ## 技术栈
 
-Go 1.26, mark3labs/mcp-go, go-sql-driver/mysql, jackc/pgx/v5, modernc.org/sqlite, fsnotify, yaml.v3
+Go 1.26, mark3labs/mcp-go, go-sql-driver/mysql, jackc/pgx/v5, modernc.org/sqlite, github.com/redis/go-redis/v9, fsnotify, yaml.v3
