@@ -1,6 +1,7 @@
 package config
 
 import (
+	"log"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -26,6 +27,32 @@ func (d *DatabaseConfig) HasStructFields() bool {
 	return d.Host != "" || d.Port != 0 || d.Username != "" || d.Password != "" || d.Database != ""
 }
 
+// DatabaseGroups 按类型分组的数据库配置
+type DatabaseGroups struct {
+	Relational map[string]DatabaseConfig `yaml:"relational"`
+	Nosql      map[string]DatabaseConfig `yaml:"nosql"`
+	Timeseries map[string]DatabaseConfig `yaml:"timeseries"`
+	Graph      map[string]DatabaseConfig `yaml:"graph"`
+}
+
+// AllDatabases 返回所有数据库的扁平 map（用于向后兼容）
+func (g *DatabaseGroups) AllDatabases() map[string]DatabaseConfig {
+	result := make(map[string]DatabaseConfig)
+	for k, v := range g.Relational {
+		result[k] = v
+	}
+	for k, v := range g.Nosql {
+		result[k] = v
+	}
+	for k, v := range g.Timeseries {
+		result[k] = v
+	}
+	for k, v := range g.Graph {
+		result[k] = v
+	}
+	return result
+}
+
 // PermissionConfig 权限配置
 type PermissionConfig struct {
 	ReadOnly         bool     `yaml:"read_only"`
@@ -34,10 +61,136 @@ type PermissionConfig struct {
 	BlockedTables    []string `yaml:"blocked_tables"`
 }
 
+// NosqlPermissionConfig NoSQL 权限配置
+type NosqlPermissionConfig struct {
+	ReadOnly        bool     `yaml:"read_only"`
+	AllowedCommands []string `yaml:"allowed_commands"`
+	BlockedKeys     []string `yaml:"blocked_keys"`
+}
+
+// PermissionsGroup 按类型分组的权限配置
+type PermissionsGroup struct {
+	Relational PermissionConfig          `yaml:"relational"`
+	Nosql      NosqlPermissionConfig     `yaml:"nosql"`
+	Timeseries PermissionConfig          `yaml:"timeseries"`
+	Graph      PermissionConfig          `yaml:"graph"`
+}
+
 // AppConfig 完整配置
 type AppConfig struct {
-	Databases   map[string]DatabaseConfig `yaml:"databases"`
-	Permissions PermissionConfig          `yaml:"permissions"`
+	// 旧格式：flat map（向后兼容）
+	Databases map[string]DatabaseConfig `yaml:"databases"`
+	// 新格式：按类型分组
+	DatabaseGroups DatabaseGroups `yaml:"database_groups"`
+	// 旧格式权限（向后兼容）
+	Permissions PermissionConfig `yaml:"permissions"`
+	// 新格式权限：按类型分组
+	PermissionsGroup PermissionsGroup `yaml:"permissions_groups"`
+}
+
+// NormalizeConfig 将旧格式迁移到新格式
+func NormalizeConfig(cfg *AppConfig) {
+	// 初始化分组 map
+	if cfg.DatabaseGroups.Relational == nil {
+		cfg.DatabaseGroups.Relational = make(map[string]DatabaseConfig)
+	}
+	if cfg.DatabaseGroups.Nosql == nil {
+		cfg.DatabaseGroups.Nosql = make(map[string]DatabaseConfig)
+	}
+	if cfg.DatabaseGroups.Timeseries == nil {
+		cfg.DatabaseGroups.Timeseries = make(map[string]DatabaseConfig)
+	}
+	if cfg.DatabaseGroups.Graph == nil {
+		cfg.DatabaseGroups.Graph = make(map[string]DatabaseConfig)
+	}
+
+	// 如果旧格式有数据，迁移到新格式
+	if len(cfg.Databases) > 0 {
+		for name, db := range cfg.Databases {
+			if db.Driver == "" {
+				continue
+			}
+			switch db.Driver {
+			case "mysql", "postgres", "postgresql", "sqlite", "sqlite3", "mssql", "sqlserver":
+				cfg.DatabaseGroups.Relational[name] = db
+			case "redis":
+				cfg.DatabaseGroups.Nosql[name] = db
+			default:
+				log.Printf("[config] unknown driver '%s' for '%s', migrating to nosql", db.Driver, name)
+				cfg.DatabaseGroups.Nosql[name] = db
+			}
+		}
+	}
+
+	// 确保新格式 map 已初始化
+	if len(cfg.DatabaseGroups.Relational) == 0 {
+		cfg.DatabaseGroups.Relational = make(map[string]DatabaseConfig)
+	}
+	if len(cfg.DatabaseGroups.Nosql) == 0 {
+		cfg.DatabaseGroups.Nosql = make(map[string]DatabaseConfig)
+	}
+	if len(cfg.DatabaseGroups.Timeseries) == 0 {
+		cfg.DatabaseGroups.Timeseries = make(map[string]DatabaseConfig)
+	}
+	if len(cfg.DatabaseGroups.Graph) == 0 {
+		cfg.DatabaseGroups.Graph = make(map[string]DatabaseConfig)
+	}
+}
+
+// applyDefaults 应用默认权限配置
+func applyDefaults(cfg *AppConfig) {
+	if cfg.Permissions.AllowedActions == nil {
+		cfg.Permissions.AllowedActions = []string{"select", "insert", "update", "delete", "create", "drop"}
+	}
+	if cfg.Permissions.AllowedDatabases == nil {
+		cfg.Permissions.AllowedDatabases = []string{"*"}
+	}
+	if cfg.Permissions.BlockedTables == nil {
+		cfg.Permissions.BlockedTables = []string{}
+	}
+	if cfg.Databases == nil {
+		cfg.Databases = make(map[string]DatabaseConfig)
+	}
+
+	// NoSQL 默认权限
+	if cfg.PermissionsGroup.Nosql.AllowedCommands == nil {
+		cfg.PermissionsGroup.Nosql.AllowedCommands = []string{
+			"GET", "SET", "HGET", "HGETALL", "HSET", "LPUSH", "LRANGE",
+			"SADD", "SMEMBERS", "SCAN", "INFO", "DEL", "EXISTS", "TTL",
+			"TYPE", "PING", "ECHO", "DBSIZE", "KEYS",
+		}
+	}
+	if cfg.PermissionsGroup.Nosql.BlockedKeys == nil {
+		cfg.PermissionsGroup.Nosql.BlockedKeys = []string{}
+	}
+
+	NormalizeConfig(cfg)
+}
+
+// ValidateConfig 校验配置合法性
+func ValidateConfig(cfg *AppConfig) error {
+	allDB := cfg.DatabaseGroups.AllDatabases()
+	if len(allDB) == 0 {
+		return &ConfigError{Message: "no valid databases configured"}
+	}
+	for name, db := range allDB {
+		if db.Driver == "" {
+			return &ConfigError{Message: "database '" + name + "' missing driver"}
+		}
+		if db.DSN == "" && db.Host == "" {
+			return &ConfigError{Message: "database '" + name + "' missing dsn or host"}
+		}
+	}
+	return nil
+}
+
+// ConfigError 配置错误
+type ConfigError struct {
+	Message string
+}
+
+func (e *ConfigError) Error() string {
+	return e.Message
 }
 
 // ReloadContext 热重载状态
@@ -116,53 +269,6 @@ func LoadConfig(path string) (*AppConfig, error) {
 		return nil, err
 	}
 	return &cfg, nil
-}
-
-// applyDefaults 应用默认权限配置
-func applyDefaults(cfg *AppConfig) {
-	if cfg.Permissions.AllowedActions == nil {
-		cfg.Permissions.AllowedActions = []string{"select", "insert", "update", "delete", "create", "drop"}
-	}
-	if cfg.Permissions.AllowedDatabases == nil {
-		cfg.Permissions.AllowedDatabases = []string{"*"}
-	}
-	if cfg.Permissions.BlockedTables == nil {
-		cfg.Permissions.BlockedTables = []string{}
-	}
-	if cfg.Databases == nil {
-		cfg.Databases = make(map[string]DatabaseConfig)
-	}
-}
-
-// ValidateConfig 校验配置合法性（跳过空条目，允许部分连接失败）
-func ValidateConfig(cfg *AppConfig) error {
-	validCount := 0
-	for name, db := range cfg.Databases {
-		// 空条目（注释掉的配置常见）直接跳过
-		if db.Driver == "" && db.DSN == "" && db.Host == "" {
-			continue
-		}
-		if db.Driver == "" {
-			return &ConfigError{Message: "database '" + name + "' missing driver"}
-		}
-		if db.DSN == "" && db.Host == "" {
-			return &ConfigError{Message: "database '" + name + "' missing dsn or host"}
-		}
-		validCount++
-	}
-	if validCount == 0 {
-		return &ConfigError{Message: "no valid databases configured"}
-	}
-	return nil
-}
-
-// ConfigError 配置错误
-type ConfigError struct {
-	Message string
-}
-
-func (e *ConfigError) Error() string {
-	return e.Message
 }
 
 // BackupConfig 备份配置文件
