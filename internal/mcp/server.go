@@ -425,7 +425,7 @@ func (d *DBMCPServer) handleBeginTx(ctx context.Context, req mcp.CallToolRequest
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	if err := drv.BeginTx(ctx); err != nil {
+	if err := drv.BeginTx(context.Background()); err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	return mcp.NewToolResultText(fmt.Sprintf("Transaction started on '%s'.", dbName)), nil
