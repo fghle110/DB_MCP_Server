@@ -235,6 +235,7 @@ func (d *DBMCPServer) handleExecuteParamQuery(ctx context.Context, req mcp.CallT
 	args := getArgs(req)
 	sqlStr := strArg(args, "sql")
 	dbName := strArg(args, "database")
+	rawParams, _ := args["params"].([]any)
 
 	if err := d.guard.CheckSQL(sqlStr); err != nil {
 		d.logAudit(dbName, security.ExtractActionType(sqlStr), sqlStr, "error", err.Error(), 0)
@@ -253,7 +254,18 @@ func (d *DBMCPServer) handleExecuteParamQuery(ctx context.Context, req mcp.CallT
 	}
 
 	start := time.Now()
-	rows, err := drv.Query(ctx, sqlStr)
+	var rows *database.QueryResult
+
+	// Try driver-specific param query first
+	if dmDrv, ok := drv.(*database.DmDriver); ok {
+		params := make([]interface{}, len(rawParams))
+		for i, p := range rawParams {
+			params[i] = p
+		}
+		rows, err = dmDrv.QueryWithParams(ctx, sqlStr, params)
+	} else {
+		rows, err = drv.Query(ctx, sqlStr)
+	}
 	duration := time.Since(start).Milliseconds()
 
 	if err != nil {

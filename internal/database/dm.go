@@ -11,8 +11,9 @@ import (
 
 // DmDriver 达梦数据库驱动
 type DmDriver struct {
-	db *sql.DB
-	tx *sql.Tx
+	db  *sql.DB
+	conn *sql.Conn
+	tx  *sql.Tx
 }
 
 // NewDmDriver 创建达梦驱动实例
@@ -76,6 +77,37 @@ func (d *DmDriver) Exec(ctx context.Context, sqlStr string) (int64, error) {
 		return d.execInTx(ctx, sqlStr)
 	}
 	return d.execSingle(ctx, sqlStr)
+}
+
+// QueryWithParams 执行带参数的查询
+func (d *DmDriver) QueryWithParams(ctx context.Context, sqlStr string, params []interface{}) (*QueryResult, error) {
+	if d.db == nil {
+		return nil, fmt.Errorf("not connected to database")
+	}
+	rows, err := d.db.QueryContext(ctx, sqlStr, params...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, err
+	}
+
+	result := &QueryResult{Columns: columns}
+	for rows.Next() {
+		values := make([]any, len(columns))
+		valuePtrs := make([]any, len(columns))
+		for i := range values {
+			valuePtrs[i] = &values[i]
+		}
+		if err := rows.Scan(valuePtrs...); err != nil {
+			return nil, err
+		}
+		result.Rows = append(result.Rows, values)
+	}
+	return result, rows.Err()
 }
 
 func (d *DmDriver) execInTx(ctx context.Context, sqlStr string) (int64, error) {
@@ -178,6 +210,10 @@ func (d *DmDriver) Close() error {
 		_ = d.tx.Rollback()
 		d.tx = nil
 	}
+	if d.conn != nil {
+		_ = d.conn.Close()
+		d.conn = nil
+	}
 	if d.db != nil {
 		return d.db.Close()
 	}
@@ -192,9 +228,16 @@ func (d *DmDriver) BeginTx(ctx context.Context) error {
 	if d.tx != nil {
 		return fmt.Errorf("transaction already in progress")
 	}
-	tx, err := d.db.BeginTx(ctx, nil)
+	// 使用 Conn 确保事务在同一个连接上
+	conn, err := d.db.Conn(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("get connection: %w", err)
+	}
+	d.conn = conn
+	tx, err := conn.BeginTx(ctx, nil)
+	if err != nil {
+		d.conn = nil
+		return fmt.Errorf("begin tx: %w", err)
 	}
 	d.tx = tx
 	return nil
@@ -207,6 +250,8 @@ func (d *DmDriver) Commit() error {
 	}
 	tx := d.tx
 	d.tx = nil
+	_ = d.conn // keep conn for potential reuse, Close handles cleanup
+	d.conn = nil
 	return tx.Commit()
 }
 
@@ -215,7 +260,8 @@ func (d *DmDriver) Rollback() error {
 	if d.tx == nil {
 		return fmt.Errorf("no transaction in progress")
 	}
-	err := d.tx.Rollback()
+	tx := d.tx
 	d.tx = nil
-	return err
+	d.conn = nil
+	return tx.Rollback()
 }
