@@ -303,7 +303,7 @@ func buildRedisDSN(cfg config.DatabaseConfig) string {
 	return fmt.Sprintf("redis://:%s@%s:%d/%s", url.QueryEscape(cfg.Password), host, port, dbNum)
 }
 
-// buildDmDSN 组装达梦 DSN: dm://user:password@host:port?schema=database&opts
+// buildDmDSN 组装达梦 DSN: dm://user:password@host:port?opts
 func buildDmDSN(cfg config.DatabaseConfig) string {
 	host := cfg.Host
 	if host == "" {
@@ -318,18 +318,21 @@ func buildDmDSN(cfg config.DatabaseConfig) string {
 		user = "SYSDBA"
 	}
 	password := cfg.Password
-	database := cfg.Database
 
-	dsn := fmt.Sprintf("dm://%s:%s@%s:%d?schema=%s",
-		url.QueryEscape(user), url.QueryEscape(password), host, port, url.QueryEscape(database))
+	dsn := fmt.Sprintf("dm://%s:%s@%s:%d",
+		url.QueryEscape(user), url.QueryEscape(password), host, port)
 
 	// 组装 options
 	opts := make(url.Values)
 	for k, v := range cfg.Options {
+		// 跳过空值的 schema 参数
+		if k == "schema" && v == "" {
+			continue
+		}
 		opts.Set(k, v)
 	}
 	if encoded := opts.Encode(); encoded != "" {
-		dsn += "&" + encoded
+		dsn += "?" + encoded
 	}
 	return dsn
 }

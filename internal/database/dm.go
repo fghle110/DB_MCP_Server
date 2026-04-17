@@ -11,9 +11,8 @@ import (
 
 // DmDriver 达梦数据库驱动
 type DmDriver struct {
-	db  *sql.DB
-	conn *sql.Conn
-	tx  *sql.Tx
+	db *sql.DB
+	tx *sql.Tx
 }
 
 // NewDmDriver 创建达梦驱动实例
@@ -111,11 +110,14 @@ func (d *DmDriver) QueryWithParams(ctx context.Context, sqlStr string, params []
 }
 
 func (d *DmDriver) execInTx(ctx context.Context, sqlStr string) (int64, error) {
+	if d.tx == nil {
+		return 0, fmt.Errorf("no transaction in progress")
+	}
 	res, err := d.tx.ExecContext(ctx, sqlStr)
 	if err != nil {
 		_ = d.tx.Rollback()
 		d.tx = nil
-		return 0, fmt.Errorf("exec failed: %w (rolled back)", err)
+		return 0, fmt.Errorf("exec in tx failed: %w (rolled back)", err)
 	}
 	affected, _ := res.RowsAffected()
 	return affected, nil
@@ -210,10 +212,6 @@ func (d *DmDriver) Close() error {
 		_ = d.tx.Rollback()
 		d.tx = nil
 	}
-	if d.conn != nil {
-		_ = d.conn.Close()
-		d.conn = nil
-	}
 	if d.db != nil {
 		return d.db.Close()
 	}
@@ -228,15 +226,13 @@ func (d *DmDriver) BeginTx(ctx context.Context) error {
 	if d.tx != nil {
 		return fmt.Errorf("transaction already in progress")
 	}
-	// 使用 Conn 确保事务在同一个连接上
-	conn, err := d.db.Conn(ctx)
+	// 先设置 autocommit=0
+	_, err := d.db.ExecContext(ctx, "SET AUTOCOMMIT=0")
 	if err != nil {
-		return fmt.Errorf("get connection: %w", err)
+		// 如果设置 autocommit 失败，继续尝试开始事务
 	}
-	d.conn = conn
-	tx, err := conn.BeginTx(ctx, nil)
+	tx, err := d.db.BeginTx(ctx, nil)
 	if err != nil {
-		d.conn = nil
 		return fmt.Errorf("begin tx: %w", err)
 	}
 	d.tx = tx
@@ -250,8 +246,6 @@ func (d *DmDriver) Commit() error {
 	}
 	tx := d.tx
 	d.tx = nil
-	_ = d.conn // keep conn for potential reuse, Close handles cleanup
-	d.conn = nil
 	return tx.Commit()
 }
 
@@ -262,6 +256,5 @@ func (d *DmDriver) Rollback() error {
 	}
 	tx := d.tx
 	d.tx = nil
-	d.conn = nil
 	return tx.Rollback()
 }
