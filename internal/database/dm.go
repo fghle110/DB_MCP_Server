@@ -11,8 +11,9 @@ import (
 
 // DmDriver 达梦数据库驱动
 type DmDriver struct {
-	db *sql.DB
-	tx *sql.Tx
+	db   *sql.DB
+	conn *sql.Conn
+	tx   *sql.Tx
 }
 
 // NewDmDriver 创建达梦驱动实例
@@ -110,14 +111,12 @@ func (d *DmDriver) QueryWithParams(ctx context.Context, sqlStr string, params []
 }
 
 func (d *DmDriver) execInTx(ctx context.Context, sqlStr string) (int64, error) {
-	if d.tx == nil {
-		return 0, fmt.Errorf("no transaction in progress")
+	if d.conn == nil {
+		return 0, fmt.Errorf("no connection available for transaction")
 	}
-	res, err := d.tx.ExecContext(ctx, sqlStr)
+	res, err := d.conn.ExecContext(ctx, sqlStr)
 	if err != nil {
-		_ = d.tx.Rollback()
-		d.tx = nil
-		return 0, fmt.Errorf("exec in tx failed: %w (rolled back)", err)
+		return 0, fmt.Errorf("exec in conn failed: %w", err)
 	}
 	affected, _ := res.RowsAffected()
 	return affected, nil
@@ -212,6 +211,10 @@ func (d *DmDriver) Close() error {
 		_ = d.tx.Rollback()
 		d.tx = nil
 	}
+	if d.conn != nil {
+		_ = d.conn.Close()
+		d.conn = nil
+	}
 	if d.db != nil {
 		return d.db.Close()
 	}
@@ -226,13 +229,14 @@ func (d *DmDriver) BeginTx(ctx context.Context) error {
 	if d.tx != nil {
 		return fmt.Errorf("transaction already in progress")
 	}
-	// 先设置 autocommit=0
-	_, err := d.db.ExecContext(ctx, "SET AUTOCOMMIT=0")
+	conn, err := d.db.Conn(ctx)
 	if err != nil {
-		// 如果设置 autocommit 失败，继续尝试开始事务
+		return fmt.Errorf("get connection: %w", err)
 	}
-	tx, err := d.db.BeginTx(ctx, nil)
+	d.conn = conn
+	tx, err := conn.BeginTx(ctx, nil)
 	if err != nil {
+		d.conn = nil
 		return fmt.Errorf("begin tx: %w", err)
 	}
 	d.tx = tx
@@ -246,7 +250,15 @@ func (d *DmDriver) Commit() error {
 	}
 	tx := d.tx
 	d.tx = nil
-	return tx.Commit()
+	conn := d.conn
+	d.conn = nil
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	if conn != nil {
+		return conn.Close()
+	}
+	return nil
 }
 
 // Rollback 回滚事务
@@ -256,5 +268,13 @@ func (d *DmDriver) Rollback() error {
 	}
 	tx := d.tx
 	d.tx = nil
-	return tx.Rollback()
+	conn := d.conn
+	d.conn = nil
+	if err := tx.Rollback(); err != nil {
+		return err
+	}
+	if conn != nil {
+		return conn.Close()
+	}
+	return nil
 }
