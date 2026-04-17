@@ -25,7 +25,26 @@
       "mcp__dbmcp__config_status",
       "Bash(pg_isready -h localhost -p 5432)",
       "Bash(docker exec dbmcp-postgres *)",
-      "mcp__dbmcp__query_logs"
+      "mcp__dbmcp__query_logs",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git worktree *)",
+      "Bash(git cherry-pick *)",
+      "Bash(git stash *)",
+      "Bash(git checkout *)",
+      "Bash(git pull *)",
+      "Bash(git merge *)",
+      "Bash(git branch *)",
+      "Bash(./build/dbmcp.exe)",
+      "mcp__dbmcp__execute_param_query",
+      "mcp__dbmcp__begin_tx",
+      "mcp__dbmcp__rollback",
+      "Bash(docker run *)",
+      "Bash(go run *)",
+      "Bash(docker stop *)",
+      "Bash(docker rm *)",
+      "Bash(MSYS_NO_PATHCONV=1 docker exec mssql-test *)",
+      "mcp__dbmcp__commit"
     ]
   },
   "enabledPlugins": {

@@ -26,8 +26,8 @@ func (d *MSSQLDriver) Connect(dsn string) error {
 	if err != nil {
 		return err
 	}
-	db.SetMaxOpenConns(10)
-	db.SetMaxIdleConns(5)
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	db.SetConnMaxLifetime(5 * time.Minute)
 	if err := db.Ping(); err != nil {
 		return fmt.Errorf("ping mssql: %w", err)
@@ -38,7 +38,13 @@ func (d *MSSQLDriver) Connect(dsn string) error {
 
 // Query 执行查询
 func (d *MSSQLDriver) Query(ctx context.Context, sqlStr string) (*QueryResult, error) {
-	rows, err := d.db.QueryContext(ctx, sqlStr)
+	var rows *sql.Rows
+	var err error
+	if d.tx != nil {
+		rows, err = d.tx.QueryContext(ctx, sqlStr)
+	} else {
+		rows, err = d.db.QueryContext(ctx, sqlStr)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +83,7 @@ func (d *MSSQLDriver) execInTx(ctx context.Context, sqlStr string) (int64, error
 	if err != nil {
 		_ = d.tx.Rollback()
 		d.tx = nil
-		return 0, fmt.Errorf("exec failed: %w (rolled back)", err)
+		return 0, fmt.Errorf("exec in transaction failed: %w", err)
 	}
 	affected, _ := res.RowsAffected()
 	return affected, nil
@@ -118,7 +124,7 @@ func (d *MSSQLDriver) BeginTx(ctx context.Context) error {
 	if d.tx != nil {
 		return fmt.Errorf("transaction already in progress")
 	}
-	tx, err := d.db.BeginTx(ctx, nil)
+	tx, err := d.db.BeginTx(context.Background(), nil)
 	if err != nil {
 		return err
 	}
