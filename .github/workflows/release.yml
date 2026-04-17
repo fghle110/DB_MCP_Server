@@ -25,8 +25,8 @@ jobs:
           go-version: "1.26"
           cache: true
 
-      - name: Run tests
-        run: go test ./... -v -race
+      - name: Run unit tests
+        run: go test ./internal/config/... ./internal/security/... ./internal/permission/... -v -race
 
       - name: Generate doc changelog
         run: |

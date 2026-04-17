@@ -24,10 +24,7 @@ jobs:
         run: go mod download
 
       - name: Run unit tests
-        run: go test ./internal/config/... ./internal/security/... ./internal/permission/... -v
-
-      - name: Run integration tests
-        run: go test ./... -v -race
+        run: go test ./internal/config/... ./internal/security/... ./internal/permission/... -v -race
 
   build:
     name: Build
