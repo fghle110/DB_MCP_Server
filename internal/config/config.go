@@ -77,6 +77,61 @@ type PermissionsGroup struct {
 	Graph      map[string]PermissionConfig      `yaml:"graph"`
 }
 
+// UnmarshalYAML 自定义解析，支持旧格式（单一对象）和新格式（map）
+func (pg *PermissionsGroup) UnmarshalYAML(value *yaml.Node) error {
+	// 先尝试用中间结构解析：每种类型可能是单一对象或 map
+	type rawGroup struct {
+		Relational yaml.Node `yaml:"relational"`
+		Nosql      yaml.Node `yaml:"nosql"`
+		Timeseries yaml.Node `yaml:"timeseries"`
+		Graph      yaml.Node `yaml:"graph"`
+	}
+	var r rawGroup
+	if err := value.Decode(&r); err != nil {
+		return err
+	}
+
+	pg.Relational = make(map[string]PermissionConfig)
+	pg.Nosql = make(map[string]NosqlPermissionConfig)
+	pg.Timeseries = make(map[string]PermissionConfig)
+	pg.Graph = make(map[string]PermissionConfig)
+
+	// 解析 relational：可能是单个 PermissionConfig 或 map[string]PermissionConfig
+	if r.Relational.Kind != 0 {
+		// 先尝试解析为单个 PermissionConfig（旧格式）
+		var single PermissionConfig
+		if err := r.Relational.Decode(&single); err == nil && single.ReadOnly || len(single.AllowedActions) > 0 {
+			// 这是旧格式单一对象，暂存标记，后续 applyDefaults 会处理
+			pg.Relational[""] = single
+		} else {
+			// 尝试解析为 map
+			var m map[string]PermissionConfig
+			if err := r.Relational.Decode(&m); err == nil {
+				pg.Relational = m
+			} else {
+				pg.Relational[""] = single
+			}
+		}
+	}
+
+	// 解析 nosql：可能是单个 NosqlPermissionConfig 或 map
+	if r.Nosql.Kind != 0 {
+		var single NosqlPermissionConfig
+		if err := r.Nosql.Decode(&single); err == nil && single.ReadOnly || len(single.AllowedCommands) > 0 {
+			pg.Nosql[""] = single
+		} else {
+			var m map[string]NosqlPermissionConfig
+			if err := r.Nosql.Decode(&m); err == nil {
+				pg.Nosql = m
+			} else {
+				pg.Nosql[""] = single
+			}
+		}
+	}
+
+	return nil
+}
+
 // AppConfig 完整配置
 type AppConfig struct {
 	// 旧格式：flat map（向后兼容）
@@ -89,9 +144,16 @@ type AppConfig struct {
 	PermissionsGroup PermissionsGroup `yaml:"permissions_groups"`
 }
 
-// HasOldFormat 判断是否使用了旧格式（扁平 permissions 有实际值）
+// HasOldFormat 判断是否使用了旧格式（扁平 permissions 有实际值，或 permissions_groups 是单一对象）
 func (cfg *AppConfig) HasOldFormat() bool {
 	if cfg.Permissions.ReadOnly || len(cfg.Permissions.AllowedActions) > 0 || len(cfg.Permissions.AllowedDatabases) > 0 || len(cfg.Permissions.BlockedTables) > 0 {
+		return true
+	}
+	// 检测 permissions_groups 是否为单一对象（空 key 标记）
+	if _, ok := cfg.PermissionsGroup.Relational[""]; ok {
+		return true
+	}
+	if _, ok := cfg.PermissionsGroup.Nosql[""]; ok {
 		return true
 	}
 	return false
@@ -131,6 +193,20 @@ func NormalizeConfig(cfg *AppConfig) {
 		}
 	}
 
+	// 初始化权限分组 map
+	if cfg.PermissionsGroup.Relational == nil {
+		cfg.PermissionsGroup.Relational = make(map[string]PermissionConfig)
+	}
+	if cfg.PermissionsGroup.Nosql == nil {
+		cfg.PermissionsGroup.Nosql = make(map[string]NosqlPermissionConfig)
+	}
+	if cfg.PermissionsGroup.Timeseries == nil {
+		cfg.PermissionsGroup.Timeseries = make(map[string]PermissionConfig)
+	}
+	if cfg.PermissionsGroup.Graph == nil {
+		cfg.PermissionsGroup.Graph = make(map[string]PermissionConfig)
+	}
+
 	// 迁移旧 permissions 到 per-database 权限
 	if len(cfg.Databases) > 0 && (cfg.Permissions.ReadOnly || len(cfg.Permissions.AllowedActions) > 0) {
 		oldPerm := cfg.Permissions
@@ -142,6 +218,26 @@ func NormalizeConfig(cfg *AppConfig) {
 					AllowedActions:   oldPerm.AllowedActions,
 					BlockedTables:    oldPerm.BlockedTables,
 				}
+			}
+		}
+	}
+
+	// 迁移 permissions_groups 中的单一对象（旧分组格式）到 per-database map
+	if relSingle, ok := cfg.PermissionsGroup.Relational[""]; ok {
+		delete(cfg.PermissionsGroup.Relational, "")
+		if len(cfg.PermissionsGroup.Relational) == 0 {
+			// 没有 per-database 配置，将单一对象分发给所有数据库
+			for name := range cfg.DatabaseGroups.Relational {
+				cfg.PermissionsGroup.Relational[name] = relSingle
+			}
+		}
+		// 如果已有 per-database 配置，空 key 是冗余残留，直接删除即可
+	}
+	if nosqlSingle, ok := cfg.PermissionsGroup.Nosql[""]; ok {
+		delete(cfg.PermissionsGroup.Nosql, "")
+		if len(cfg.PermissionsGroup.Nosql) == 0 {
+			for name := range cfg.DatabaseGroups.Nosql {
+				cfg.PermissionsGroup.Nosql[name] = nosqlSingle
 			}
 		}
 	}
@@ -203,8 +299,6 @@ func applyDefaults(cfg *AppConfig) {
 			}
 		}
 	}
-
-	NormalizeConfig(cfg)
 }
 
 // ValidateConfig 校验配置合法性
@@ -308,6 +402,8 @@ func LoadConfig(path string) (*AppConfig, error) {
 	// 检测是否需要迁移
 	needsMigration := cfg.HasOldFormat()
 	if needsMigration {
+		// 先迁移，再生成默认值（确保迁移后的权限不被默认值覆盖）
+		NormalizeConfig(&cfg)
 		applyDefaults(&cfg)
 		// 序列化为新格式
 		newData, err := yaml.Marshal(&cfg)
@@ -324,6 +420,7 @@ func LoadConfig(path string) (*AppConfig, error) {
 		}
 		log.Println("[config] migrated config to per-database permissions")
 	} else {
+		NormalizeConfig(&cfg)
 		applyDefaults(&cfg)
 	}
 

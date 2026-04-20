@@ -10,6 +10,8 @@ builds:
     binary: dbmcp
     env:
       - CGO_ENABLED=0
+    tags:
+      - dm
     goos:
       - linux
       - darwin
