@@ -599,7 +599,7 @@ func (d *DBMCPServer) handleRedisCommand(ctx context.Context, req mcp.CallToolRe
 
 	// 权限校验
 	key := security.ExtractRedisKey(cmdStr)
-	if err := d.perm.CheckRedisCommand(command, key); err != nil {
+	if err := d.perm.CheckRedisCommand(dbName, command, key); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("permission denied: %v", err)), nil
 	}
 
@@ -646,7 +646,7 @@ func (d *DBMCPServer) handleRedisScan(ctx context.Context, req mcp.CallToolReque
 	dbNum := int(numArg(args, "db"))
 
 	// 权限校验
-	if err := d.perm.CheckRedisCommand("SCAN", ""); err != nil {
+	if err := d.perm.CheckRedisCommand(dbName, "SCAN", ""); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("permission denied: %v", err)), nil
 	}
 
@@ -702,7 +702,7 @@ func (d *DBMCPServer) handleRedisInfo(ctx context.Context, req mcp.CallToolReque
 	section := strArg(args, "section")
 
 	// 权限校验
-	if err := d.perm.CheckRedisCommand("INFO", ""); err != nil {
+	if err := d.perm.CheckRedisCommand(dbName, "INFO", ""); err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("permission denied: %v", err)), nil
 	}
 
