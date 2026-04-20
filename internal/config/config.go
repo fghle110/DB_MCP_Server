@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"sync"
@@ -88,6 +89,14 @@ type AppConfig struct {
 	PermissionsGroup PermissionsGroup `yaml:"permissions_groups"`
 }
 
+// HasOldFormat 判断是否使用了旧格式（扁平 permissions 有实际值）
+func (cfg *AppConfig) HasOldFormat() bool {
+	if cfg.Permissions.ReadOnly || len(cfg.Permissions.AllowedActions) > 0 || len(cfg.Permissions.AllowedDatabases) > 0 || len(cfg.Permissions.BlockedTables) > 0 {
+		return true
+	}
+	return false
+}
+
 // NormalizeConfig 将旧格式迁移到新格式
 func NormalizeConfig(cfg *AppConfig) {
 	// 初始化分组 map
@@ -118,6 +127,21 @@ func NormalizeConfig(cfg *AppConfig) {
 			default:
 				log.Printf("[config] unknown driver '%s' for '%s', migrating to nosql", db.Driver, name)
 				cfg.DatabaseGroups.Nosql[name] = db
+			}
+		}
+	}
+
+	// 迁移旧 permissions 到 per-database 权限
+	if len(cfg.Databases) > 0 && (cfg.Permissions.ReadOnly || len(cfg.Permissions.AllowedActions) > 0) {
+		oldPerm := cfg.Permissions
+		for name := range cfg.DatabaseGroups.Relational {
+			if _, exists := cfg.PermissionsGroup.Relational[name]; !exists {
+				cfg.PermissionsGroup.Relational[name] = PermissionConfig{
+					ReadOnly:         oldPerm.ReadOnly,
+					AllowedDatabases: oldPerm.AllowedDatabases,
+					AllowedActions:   oldPerm.AllowedActions,
+					BlockedTables:    oldPerm.BlockedTables,
+				}
 			}
 		}
 	}
@@ -280,7 +304,29 @@ func LoadConfig(path string) (*AppConfig, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
-	applyDefaults(&cfg)
+
+	// 检测是否需要迁移
+	needsMigration := cfg.HasOldFormat()
+	if needsMigration {
+		applyDefaults(&cfg)
+		// 序列化为新格式
+		newData, err := yaml.Marshal(&cfg)
+		if err != nil {
+			return nil, fmt.Errorf("marshal migrated config: %w", err)
+		}
+		// 先备份
+		if err := BackupConfig(path); err != nil {
+			log.Printf("[config] backup failed before migration: %v", err)
+		}
+		// 写回新格式
+		if err := os.WriteFile(path, newData, 0644); err != nil {
+			return nil, fmt.Errorf("write migrated config: %w", err)
+		}
+		log.Println("[config] migrated config to per-database permissions")
+	} else {
+		applyDefaults(&cfg)
+	}
+
 	if err := ValidateConfig(&cfg); err != nil {
 		return nil, err
 	}
