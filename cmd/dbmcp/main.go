@@ -48,8 +48,7 @@ func main() {
 		}
 	}
 
-	perm := permission.NewChecker(cfg.PermissionsGroup.Relational)
-	perm.UpdateNosql(cfg.PermissionsGroup.Nosql)
+	perm := permission.NewChecker(cfg.PermissionsGroup)
 	guard := security.NewSQLGuard(security.MaxSQLLength)
 
 	auditLog, err := logger.NewAuditLogger()
@@ -60,8 +59,7 @@ func main() {
 	err = config.StartWatcher(app, func() {
 		newCfg := app.Config()
 		dm.SyncFromConfig(newCfg.DatabaseGroups.AllDatabases())
-		perm.Update(newCfg.PermissionsGroup.Relational)
-		perm.UpdateNosql(newCfg.PermissionsGroup.Nosql)
+		perm.UpdateFromConfig(newCfg.PermissionsGroup)
 		log.Println("[config] hot-reload applied")
 	})
 	if err != nil {
