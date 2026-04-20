@@ -27,7 +27,7 @@
 **Files:**
 - `go.mod`
 
-- [ ] **Step 1: 添加依赖**
+- [x] **Step 1: 添加依赖**
 
 Run:
 ```bash
@@ -36,7 +36,7 @@ go get github.com/microsoft/go-mssqldb@latest
 
 Expected: `go.mod` 中新增 `github.com/microsoft/go-mssqldb` 及相关间接依赖，`go.sum` 更新。
 
-- [ ] **Step 2: 验证依赖可解析**
+- [x] **Step 2: 验证依赖可解析**
 
 Run:
 ```bash
@@ -45,7 +45,7 @@ go mod tidy
 
 Expected: 无错误输出。
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add go.mod go.sum
@@ -59,7 +59,7 @@ git commit -m "chore: add go-mssqldb dependency"
 **Files:**
 - Modify: `internal/database/manager.go` (lines 130-141 for createDriver, lines 144-161 for buildDSN)
 
-- [ ] **Step 1: 在 createDriver 中新增 mssql case**
+- [x] **Step 1: 在 createDriver 中新增 mssql case**
 
 在 `internal/database/manager.go` 的 `createDriver` 函数中，`default` case 之前添加：
 
@@ -68,7 +68,7 @@ case "mssql", "sqlserver":
     return NewMSSQLDriver(), nil
 ```
 
-- [ ] **Step 2: 在 buildDSN 中新增 mssql case**
+- [x] **Step 2: 在 buildDSN 中新增 mssql case**
 
 在 `buildDSN` 函数的 switch 中，`default` case 之前添加：
 
@@ -77,7 +77,7 @@ case "mssql", "sqlserver":
     return buildMSSQLDSN(cfg)
 ```
 
-- [ ] **Step 3: 添加 buildMSSQLDSN 函数**
+- [x] **Step 3: 添加 buildMSSQLDSN 函数**
 
 在 `buildSQLiteDSN` 函数之后（文件末尾），添加：
 
@@ -115,7 +115,7 @@ func buildMSSQLDSN(cfg config.DatabaseConfig) string {
 }
 ```
 
-- [ ] **Step 4: 验证编译通过**
+- [x] **Step 4: 验证编译通过**
 
 Run:
 ```bash
@@ -124,7 +124,7 @@ go build ./...
 
 Expected: 编译失败，提示 `NewMSSQLDriver` 未定义（因为我们还没创建 mssql.go）。这是预期行为，确认注册逻辑语法正确。
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add internal/database/manager.go
@@ -138,7 +138,7 @@ git commit -m "feat: register mssql driver type and DSN builder in manager"
 **Files:**
 - Create: `internal/database/mssql.go`
 
-- [ ] **Step 1: 创建 mssql.go 并实现 Connect/Query/Exec**
+- [x] **Step 1: 创建 mssql.go 并实现 Connect/Query/Exec**
 
 ```go
 package database
@@ -245,7 +245,7 @@ func (d *MSSQLDriver) execSingle(ctx context.Context, sqlStr string) (int64, err
 }
 ```
 
-- [ ] **Step 2: 验证编译通过**
+- [x] **Step 2: 验证编译通过**
 
 Run:
 ```bash
@@ -254,7 +254,7 @@ go build ./...
 
 Expected: 编译成功，无错误。
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/database/mssql.go
@@ -268,7 +268,7 @@ git commit -m "feat: add MSSQLDriver with Connect/Query/Exec methods"
 **Files:**
 - Modify: `internal/database/mssql.go`
 
-- [ ] **Step 1: 在 mssql.go 中追加元数据方法**
+- [x] **Step 1: 在 mssql.go 中追加元数据方法**
 
 在 `execSingle` 函数之后、`Close` 方法之前添加（`Close` 方法下一步实现）：
 
@@ -341,7 +341,7 @@ func (d *MSSQLDriver) DescribeTable(ctx context.Context, database, table string)
 }
 ```
 
-- [ ] **Step 2: 验证编译通过**
+- [x] **Step 2: 验证编译通过**
 
 Run:
 ```bash
@@ -350,7 +350,7 @@ go build ./...
 
 Expected: 编译成功。
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/database/mssql.go
@@ -364,7 +364,7 @@ git commit -m "feat: add MSSQL ListDatabases/ListTables/DescribeTable methods"
 **Files:**
 - Modify: `internal/database/mssql.go`
 
-- [ ] **Step 1: 追加事务和 Close 方法**
+- [x] **Step 1: 追加事务和 Close 方法**
 
 在文件末尾添加：
 
@@ -415,7 +415,7 @@ func (d *MSSQLDriver) Rollback() error {
 }
 ```
 
-- [ ] **Step 2: 验证编译和接口实现**
+- [x] **Step 2: 验证编译和接口实现**
 
 Run:
 ```bash
@@ -424,7 +424,7 @@ go build ./...
 
 Expected: 编译成功。同时验证 `MSSQLDriver` 实现了 `DatabaseDriver` 接口——如果有任何方法缺失，编译器会报错。
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/database/mssql.go
@@ -438,14 +438,14 @@ git commit -m "feat: add MSSQL transaction and Close methods"
 **Files:**
 - Modify: `testhelpers/dbsetup.go`
 
-- [ ] **Step 1: 添加 mssql testcontainers 依赖**
+- [x] **Step 1: 添加 mssql testcontainers 依赖**
 
 Run:
 ```bash
 go get github.com/testcontainers/testcontainers-go/modules/mssql@latest
 ```
 
-- [ ] **Step 2: 在 dbsetup.go 中添加 SetupMSSQLContainer 函数**
+- [x] **Step 2: 在 dbsetup.go 中添加 SetupMSSQLContainer 函数**
 
 在 `SetupPostgresContainer` 函数之后添加：
 
@@ -484,7 +484,7 @@ func SetupMSSQLContainer(ctx context.Context) (string, func(), error) {
 
 注意：需要在文件顶部 import 中添加 `"net/url"` 和 `"github.com/testcontainers/testcontainers-go/modules/mssql"`。
 
-- [ ] **Step 3: 验证编译通过**
+- [x] **Step 3: 验证编译通过**
 
 Run:
 ```bash
@@ -493,7 +493,7 @@ go build ./...
 
 Expected: 编译成功。
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add testhelpers/dbsetup.go go.mod go.sum
@@ -507,7 +507,7 @@ git commit -m "feat: add MSSQL test container helper"
 **Files:**
 - Create: `internal/database/mssql_test.go`
 
-- [ ] **Step 1: 创建 mssql_test.go**
+- [x] **Step 1: 创建 mssql_test.go**
 
 ```go
 package database
@@ -741,7 +741,7 @@ func TestMSSQL_ExecRowsAffected(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 验证编译通过**
+- [x] **Step 2: 验证编译通过**
 
 Run:
 ```bash
@@ -750,7 +750,7 @@ go build ./...
 
 Expected: 编译成功。
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add internal/database/mssql_test.go
@@ -764,7 +764,7 @@ git commit -m "test: add MSSQL integration tests (8 test cases)"
 **Files:**
 - `internal/database/mssql_test.go`
 
-- [ ] **Step 1: 运行 MSSQL 集成测试**
+- [x] **Step 1: 运行 MSSQL 集成测试**
 
 Run:
 ```bash
@@ -776,7 +776,7 @@ Expected:
 - 或全部 SKIP（Docker 不可用时）
 - 无 FAIL
 
-- [ ] **Step 2: 运行全部测试确保无回归**
+- [x] **Step 2: 运行全部测试确保无回归**
 
 Run:
 ```bash
@@ -785,7 +785,7 @@ go test ./... -v
 
 Expected: 所有现有测试 PASS，MSSQL 测试 PASS 或 SKIP。
 
-- [ ] **Step 3: 最终 Commit（如有测试修复）**
+- [x] **Step 3: 最终 Commit（如有测试修复）**
 
 ```bash
 git add -A

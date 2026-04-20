@@ -33,7 +33,7 @@
 **Files:**
 - Modify: `go.mod` / `go.sum`
 
-- [ ] **Step 1: 添加 go-redis 依赖**
+- [x] **Step 1: 添加 go-redis 依赖**
 
 Run:
 ```bash
@@ -45,7 +45,7 @@ go get github.com/redis/go-redis/v9@latest
 GOPROXY=https://goproxy.cn,direct go get github.com/redis/go-redis/v9@latest
 ```
 
-- [ ] **Step 2: 验证依赖已添加**
+- [x] **Step 2: 验证依赖已添加**
 
 Run:
 ```bash
@@ -54,7 +54,7 @@ go mod tidy
 
 Expected: 无错误，go.mod 中出现 `github.com/redis/go-redis/v9`
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add go.mod go.sum
@@ -69,7 +69,7 @@ git commit -m "chore: add go-redis dependency"
 - Modify: `internal/config/config.go`
 - Modify: `internal/config/config_test.go`
 
-- [ ] **Step 1: 编写新配置结构的测试用例**
+- [x] **Step 1: 编写新配置结构的测试用例**
 
 在 `internal/config/config_test.go` 中新增：
 
@@ -151,7 +151,7 @@ func TestNormalizeConfig_MigrateOldFormat(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run:
 ```bash
@@ -160,7 +160,7 @@ go test ./internal/config/... -run 'TestValidateConfig_Grouped|TestLoadConfig_Ba
 
 Expected: 编译失败（类型未定义）
 
-- [ ] **Step 3: 实现配置结构重构**
+- [x] **Step 3: 实现配置结构重构**
 
 修改 `internal/config/config.go`，完整内容如下：
 
@@ -461,7 +461,7 @@ func BackupConfig(path string) error {
 }
 ```
 
-- [ ] **Step 4: 更新现有测试**
+- [x] **Step 4: 更新现有测试**
 
 修改 `internal/config/config_test.go` 中需要适配的测试：
 
@@ -650,7 +650,7 @@ func TestBackupConfig(t *testing.T) {
 }
 ```
 
-- [ ] **Step 5: 运行配置测试**
+- [x] **Step 5: 运行配置测试**
 
 Run:
 ```bash
@@ -659,7 +659,7 @@ go test ./internal/config/... -v
 
 Expected: 所有测试通过
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add internal/config/config.go internal/config/config_test.go
@@ -675,7 +675,7 @@ git commit -m "feat: restructure config to type-grouped databases with backward 
 - Create: `internal/database/redis_test.go`
 - Modify: `internal/database/manager.go`
 
-- [ ] **Step 1: 编写 Redis 驱动的单元测试**
+- [x] **Step 1: 编写 Redis 驱动的单元测试**
 
 创建 `internal/database/redis_test.go`：
 
@@ -779,7 +779,7 @@ func TestParseRedisCommand(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run:
 ```bash
@@ -788,7 +788,7 @@ go test ./internal/database/... -run TestRedis -v
 
 Expected: 编译失败（类型未定义）
 
-- [ ] **Step 3: 实现 Redis 驱动**
+- [x] **Step 3: 实现 Redis 驱动**
 
 创建 `internal/database/redis.go`：
 
@@ -992,7 +992,7 @@ func (d *RedisDriver) Scan(ctx context.Context, cursor uint64, pattern string, c
 }
 ```
 
-- [ ] **Step 4: 更新 manager.go 添加 Redis 分支**
+- [x] **Step 4: 更新 manager.go 添加 Redis 分支**
 
 修改 `internal/database/manager.go` 中的 `createDriver` 函数：
 
@@ -1075,7 +1075,7 @@ func buildRedisDSN(cfg config.DatabaseConfig) string {
 }
 ```
 
-- [ ] **Step 5: 运行数据库包测试**
+- [x] **Step 5: 运行数据库包测试**
 
 Run:
 ```bash
@@ -1084,7 +1084,7 @@ go test ./internal/database/... -run TestRedis -v
 
 Expected: 所有 Redis 相关测试通过
 
-- [ ] **Step 6: 编译验证**
+- [x] **Step 6: 编译验证**
 
 Run:
 ```bash
@@ -1093,7 +1093,7 @@ go build -o build/dbmcp.exe ./cmd/dbmcp
 
 Expected: 编译成功
 
-- [ ] **Step 7: 提交**
+- [x] **Step 7: 提交**
 
 ```bash
 git add internal/database/redis.go internal/database/redis_test.go internal/database/manager.go go.mod go.sum
@@ -1108,7 +1108,7 @@ git commit -m "feat: implement Redis driver with DatabaseDriver interface"
 - Modify: `internal/permission/permission.go`
 - Modify: `internal/permission/permission_test.go`
 
-- [ ] **Step 1: 编写 Redis 权限测试**
+- [x] **Step 1: 编写 Redis 权限测试**
 
 在 `internal/permission/permission_test.go` 末尾新增：
 
@@ -1215,7 +1215,7 @@ func TestIsRedisWriteCommand(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 运行测试确认失败**
+- [x] **Step 2: 运行测试确认失败**
 
 Run:
 ```bash
@@ -1224,7 +1224,7 @@ go test ./internal/permission/... -run TestCheckRedis -v
 
 Expected: 编译失败
 
-- [ ] **Step 3: 实现 Redis 权限校验**
+- [x] **Step 3: 实现 Redis 权限校验**
 
 修改 `internal/permission/permission.go`，完整内容：
 
@@ -1386,7 +1386,7 @@ func IsRedisWriteCommand(cmd string) bool {
 }
 ```
 
-- [ ] **Step 4: 运行权限测试**
+- [x] **Step 4: 运行权限测试**
 
 Run:
 ```bash
@@ -1395,7 +1395,7 @@ go test ./internal/permission/... -v
 
 Expected: 所有测试通过
 
-- [ ] **Step 5: 提交**
+- [x] **Step 5: 提交**
 
 ```bash
 git add internal/permission/permission.go internal/permission/permission_test.go
@@ -1409,7 +1409,7 @@ git commit -m "feat: add Redis command-level permission whitelist"
 **Files:**
 - Modify: `internal/security/sql_guard.go`
 
-- [ ] **Step 1: 新增 Redis 命令解析函数**
+- [x] **Step 1: 新增 Redis 命令解析函数**
 
 在 `internal/security/sql_guard.go` 末尾添加（不修改现有代码）：
 
@@ -1424,7 +1424,7 @@ func ExtractRedisKey(cmd string) string {
 }
 ```
 
-- [ ] **Step 2: 运行安全模块测试**
+- [x] **Step 2: 运行安全模块测试**
 
 Run:
 ```bash
@@ -1433,7 +1433,7 @@ go test ./internal/security/... -v
 
 Expected: 所有测试通过（原有测试不受影响）
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 git add internal/security/sql_guard.go
@@ -1448,7 +1448,7 @@ git commit -m "feat: add ExtractRedisKey helper for Redis command parsing"
 - Modify: `internal/mcp/server.go`
 - Modify: `cmd/dbmcp/main.go`
 
-- [ ] **Step 1: 注册 Redis 工具**
+- [x] **Step 1: 注册 Redis 工具**
 
 在 `internal/mcp/server.go` 的 `registerTools()` 方法末尾（最后一个 `d.srv.AddTool(...)` 之后）添加：
 
@@ -1496,7 +1496,7 @@ git commit -m "feat: add ExtractRedisKey helper for Redis command parsing"
 	)
 ```
 
-- [ ] **Step 2: 实现 Redis 工具 handler**
+- [x] **Step 2: 实现 Redis 工具 handler**
 
 在 `internal/mcp/server.go` 末尾添加：
 
@@ -1720,7 +1720,7 @@ func (d *DBMCPServer) handleRedisScan(ctx context.Context, req mcp.CallToolReque
 }
 ```
 
-- [ ] **Step 3: 更新 main.go 适配分组配置**
+- [x] **Step 3: 更新 main.go 适配分组配置**
 
 修改 `cmd/dbmcp/main.go` 中的数据库注册部分（第 44-49 行）：
 
@@ -1755,7 +1755,7 @@ func (d *DBMCPServer) handleRedisScan(ctx context.Context, req mcp.CallToolReque
 		perm.UpdateNosql(newCfg.PermissionsGroup.Nosql)
 ```
 
-- [ ] **Step 4: 编译验证**
+- [x] **Step 4: 编译验证**
 
 Run:
 ```bash
@@ -1764,7 +1764,7 @@ go build -o build/dbmcp.exe ./cmd/dbmcp
 
 Expected: 编译成功
 
-- [ ] **Step 5: 运行全部测试**
+- [x] **Step 5: 运行全部测试**
 
 Run:
 ```bash
@@ -1773,7 +1773,7 @@ go test ./internal/config/... ./internal/security/... ./internal/permission/... 
 
 Expected: 所有测试通过
 
-- [ ] **Step 6: 提交**
+- [x] **Step 6: 提交**
 
 ```bash
 git add internal/mcp/server.go cmd/dbmcp/main.go
@@ -1787,7 +1787,7 @@ git commit -m "feat: add 4 Redis MCP tools (redis_command, redis_scan, redis_inf
 **Files:**
 - All modified files
 
-- [ ] **Step 1: 运行全部单元测试**
+- [x] **Step 1: 运行全部单元测试**
 
 Run:
 ```bash
@@ -1796,7 +1796,7 @@ go test ./internal/config/... ./internal/security/... ./internal/permission/... 
 
 Expected: 全部通过
 
-- [ ] **Step 2: 编译最终版本**
+- [x] **Step 2: 编译最终版本**
 
 Run:
 ```bash
@@ -1805,7 +1805,7 @@ go build -o build/dbmcp.exe ./cmd/dbmcp
 
 Expected: 编译成功
 
-- [ ] **Step 3: 更新 CLAUDE.md 文档**
+- [x] **Step 3: 更新 CLAUDE.md 文档**
 
 在 `CLAUDE.md` 的 MCP 工具列表中添加 Redis 工具，在配置示例中添加 Redis 分组配置。
 
@@ -1832,7 +1832,7 @@ Expected: 编译成功
 在数据库驱动部分添加：
 | `redis.go` | Redis 驱动，使用 go-redis 连接 |
 
-- [ ] **Step 4: 最终提交**
+- [x] **Step 4: 最终提交**
 
 ```bash
 git add CLAUDE.md

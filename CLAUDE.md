@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with th
 
 ## 项目概述
 
-**dbmcp** v0.3.0 — 一个用 Go 编写的数据库操作 MCP Server。通过模型上下文协议（stdio 传输）暴露 15 个工具，供 AI 工具与 MySQL、PostgreSQL、SQLite、达梦、Redis 数据库交互。支持多数据库连接、结构化配置、事务控制、配置热重载、SQL 注入防护和操作审计。
+**dbmcp** v0.3.0 — 一个用 Go 编写的数据库操作 MCP Server。通过模型上下文协议（stdio 传输）暴露 15 个工具，供 AI 工具与 MySQL、PostgreSQL、SQLite、SQL Server、达梦、Redis 数据库交互。支持多数据库连接、结构化配置、事务控制、配置热重载、SQL 注入防护和操作审计。详见 [数据库支持文档](docs/zh/databases.md)。
 
 ## 常用命令
 
@@ -43,7 +43,7 @@ GOPROXY=https://goproxy.cn,direct go get <package>
 | 模块 | 职责 |
 |------|------|
 | `config/` | 配置加载（YAML）、结构化字段支持（host/port/username/password/database/options）、校验、fsnotify 热重载 |
-| `database/` | `DatabaseDriver` 接口 + `DriverManager` 连接池 + 5 种驱动实现（MySQL/PG/SQLite/MSSQL/达梦）+ Redis 驱动 + 事务支持 |
+| `database/` | `DatabaseDriver` 接口 + `DriverManager` 连接池 + 6 种驱动实现（MySQL/PG/SQLite/MSSQL/达梦/Redis）+ 事务支持 |
 | `security/` | SQL 注入防护：关键字拦截、多语句检测（支持 `$$` dollar-quoted strings）、输入校验 |
 | `permission/` | 权限校验：只读模式、数据库白名单、表黑名单、操作白名单、Redis 命令白名单/key 黑名单 |
 | `logger/` | 审计日志，写入本地 SQLite（`~/.dbmcp/audit.db`），含 DSN 脱敏和高危操作标记 |

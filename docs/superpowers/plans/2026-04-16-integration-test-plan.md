@@ -28,7 +28,7 @@
 - Create: `testhelpers/dbsetup.go`
 - Modify: `go.mod` (新增依赖)
 
-- [ ] **Step 1: 安装 testcontainers 依赖**
+- [x] **Step 1: 安装 testcontainers 依赖**
 
 ```bash
 cd C:/Workspace/TestProject/dbmcp
@@ -38,7 +38,7 @@ GOPROXY=https://goproxy.cn,direct go get github.com/testcontainers/testcontainer
 GOPROXY=https://goproxy.cn,direct go mod tidy
 ```
 
-- [ ] **Step 2: 创建测试辅助文件**
+- [x] **Step 2: 创建测试辅助文件**
 
 创建 `testhelpers/dbsetup.go`:
 
@@ -140,7 +140,7 @@ func SetupPostgresContainer(ctx context.Context) (string, func(), error) {
 }
 ```
 
-- [ ] **Step 3: 编译验证**
+- [x] **Step 3: 编译验证**
 
 ```bash
 cd C:/Workspace/TestProject/dbmcp
@@ -149,7 +149,7 @@ go build ./testhelpers/...
 
 Expected: no errors.
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 cd C:/Workspace/TestProject/dbmcp
@@ -166,7 +166,7 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 **Files:**
 - Create: `internal/database/sqlite_test.go`
 
-- [ ] **Step 1: 创建 SQLite 集成测试**
+- [x] **Step 1: 创建 SQLite 集成测试**
 
 SQLite 使用内存数据库,不需要 Docker,是最简单的起点。
 
@@ -372,7 +372,7 @@ func TestSQLite_ExecRowsAffected(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 运行测试**
+- [x] **Step 2: 运行测试**
 
 ```bash
 cd C:/Workspace/TestProject/dbmcp
@@ -381,7 +381,7 @@ go test ./internal/database/sqlite_test.go ./internal/database/interface.go ./in
 
 Expected: 8 tests PASS.
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 cd C:/Workspace/TestProject/dbmcp
@@ -398,7 +398,7 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 **Files:**
 - Create: `internal/database/mysql_test.go`
 
-- [ ] **Step 1: 创建 MySQL 集成测试**
+- [x] **Step 1: 创建 MySQL 集成测试**
 
 创建 `internal/database/mysql_test.go`:
 
@@ -623,7 +623,7 @@ func TestMySQL_ExecRowsAffected(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 编译验证**
+- [x] **Step 2: 编译验证**
 
 ```bash
 cd C:/Workspace/TestProject/dbmcp
@@ -632,7 +632,7 @@ go build ./internal/database/mysql_test.go ./internal/database/interface.go ./in
 
 Expected: no errors. (Tests will only pass if Docker is available.)
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 cd C:/Workspace/TestProject/dbmcp
@@ -649,7 +649,7 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 **Files:**
 - Create: `internal/database/postgres_test.go`
 
-- [ ] **Step 1: 创建 PostgreSQL 集成测试**
+- [x] **Step 1: 创建 PostgreSQL 集成测试**
 
 创建 `internal/database/postgres_test.go`:
 
@@ -866,7 +866,7 @@ func TestPostgres_ExecRowsAffected(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 编译验证**
+- [x] **Step 2: 编译验证**
 
 ```bash
 cd C:/Workspace/TestProject/dbmcp
@@ -875,7 +875,7 @@ go build ./internal/database/postgres_test.go ./internal/database/interface.go .
 
 Expected: no errors.
 
-- [ ] **Step 3: 提交**
+- [x] **Step 3: 提交**
 
 ```bash
 cd C:/Workspace/TestProject/dbmcp
@@ -892,7 +892,7 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 **Files:**
 - Create: `internal/mcp/server_test.go`
 
-- [ ] **Step 1: 创建 MCP Server 集成测试**
+- [x] **Step 1: 创建 MCP Server 集成测试**
 
 这个测试组装完整的 MCP Server,使用 SQLite 内存数据库(不需要 Docker),验证所有 Tool handler 的端到端调用。
 
@@ -1329,7 +1329,7 @@ func TestMCP_ExecuteUpdate_CreateTable(t *testing.T) {
 }
 ```
 
-- [ ] **Step 2: 编译验证**
+- [x] **Step 2: 编译验证**
 
 ```bash
 cd C:/Workspace/TestProject/dbmcp
@@ -1338,7 +1338,7 @@ go build ./internal/mcp/server_test.go ./internal/mcp/server.go 2>&1
 
 Expected: no errors. (May need to resolve additional imports.)
 
-- [ ] **Step 3: 运行测试**
+- [x] **Step 3: 运行测试**
 
 ```bash
 cd C:/Workspace/TestProject/dbmcp
@@ -1347,7 +1347,7 @@ go test ./internal/mcp/... -v -run TestMCP -count=1
 
 Expected: 6 tests PASS (SQLite-based, no Docker required).
 
-- [ ] **Step 4: 提交**
+- [x] **Step 4: 提交**
 
 ```bash
 cd C:/Workspace/TestProject/dbmcp
@@ -1365,7 +1365,7 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
 - Modify: `README.md` (添加测试说明)
 - Modify: `CLAUDE.md` (添加测试命令)
 
-- [ ] **Step 1: 运行全部测试**
+- [x] **Step 1: 运行全部测试**
 
 ```bash
 cd C:/Workspace/TestProject/dbmcp
@@ -1374,7 +1374,7 @@ go test ./... -v -count=1 2>&1
 
 Expected: All existing unit tests PASS + SQLite integration tests PASS. MySQL/PostgreSQL tests will run if Docker is available, or skip gracefully.
 
-- [ ] **Step 2: 更新 README.md**
+- [x] **Step 2: 更新 README.md**
 
 在 README.md 的安全防护章节后面添加测试章节:
 
@@ -1411,7 +1411,7 @@ go test ./internal/mcp/... -v
 如果 Docker 不可用,MySQL 和 PostgreSQL 测试会自动跳过。
 ```
 
-- [ ] **Step 3: 更新 CLAUDE.md**
+- [x] **Step 3: 更新 CLAUDE.md**
 
 在 CLAUDE.md 的命令部分添加集成测试命令:
 
@@ -1423,7 +1423,7 @@ go test ./internal/database/... -run TestSQLite -v
 go test ./internal/mcp/... -run TestMCP -v
 ```
 
-- [ ] **Step 4: 最终提交**
+- [x] **Step 4: 最终提交**
 
 ```bash
 cd C:/Workspace/TestProject/dbmcp
