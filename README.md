@@ -28,7 +28,8 @@ go build -o build/dbmcp.exe ./cmd/dbmcp
 # macOS / Linux
 go build -o build/dbmcp ./cmd/dbmcp
 
-# 达梦支持版本（需要 dm 构建标签）
+# 达梦支持版本（需要 `-tags dm` 构建标签）
+# ⚠️ 注意：达梦驱动仅支持 Linux amd64 平台，macOS/Darwin 不支持
 go build -tags dm -o build/dbmcp-dm.exe ./cmd/dbmcp
 
 # 或使用 go install

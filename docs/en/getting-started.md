@@ -38,6 +38,18 @@ GOOS=linux GOARCH=amd64 go build -o build/dbmcp ./cmd/dbmcp
 GOOS=darwin GOARCH=arm64 go build -o build/dbmcp-darwin ./cmd/dbmcp
 ```
 
+> **⚠️ Dameng (DM) Build**: To include the Dameng driver, you **must add `-tags dm`**:
+>
+> ```bash
+> # Windows
+> go build -tags dm -o build/dbmcp.exe ./cmd/dbmcp
+>
+> # Linux (cross-platform)
+> GOOS=linux GOARCH=amd64 go build -tags dm -o build/dbmcp ./cmd/dbmcp
+> ```
+>
+> **Note**: The DM driver only supports Linux amd64. macOS/Darwin is not supported.
+
 ### 4. Configure
 
 Create config directory and edit:
@@ -270,11 +282,11 @@ dbmcp uses a database-agnostic architecture via the `DatabaseDriver` interface. 
 | Time-Series | Prometheus | 📋 Planned | PromQL query support |
 | Graph | Neo4j | 📋 Planned | Cypher query language |
 | Graph | NebulaGraph | 📋 Planned | Chinese distributed graph DB |
-| Chinese | Dameng (DM) | 📋 Planned | DM8 Go driver |
+| Chinese | Dameng (DM) | ✓ Supported | DM8, **requires `-tags dm` build** |
 | Chinese | KingBase | 📋 Planned | PostgreSQL-compatible |
 | Chinese | OceanBase | 📋 Planned | MySQL-compatible mode |
 | Chinese | TiDB | 📋 Planned | MySQL-compatible, distributed |
-| NoSQL | Redis | 📋 Planned | Key-value & cache management |
+| NoSQL | Redis | ✓ Supported | Key-value & cache management |
 | NoSQL | MongoDB | 📋 Planned | BSON document queries |
 | Cloud | Snowflake | 📋 Planned | Cloud data warehouse |
 | Cloud | ClickHouse | 📋 Planned | OLAP column database |

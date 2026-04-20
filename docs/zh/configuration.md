@@ -121,6 +121,8 @@ database_groups:
 go build -tags dm -o build/dbmcp.exe ./cmd/dbmcp
 ```
 
+> **⚠️ 平台限制**：达梦驱动仅支持 **Linux amd64** 平台。macOS/Darwin 不支持构建，Windows 构建需本地测试。
+
 ```yaml
 database_groups:
   relational:

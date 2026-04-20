@@ -121,6 +121,8 @@ The DM driver requires the `-tags dm` build flag:
 go build -tags dm -o build/dbmcp.exe ./cmd/dbmcp
 ```
 
+> **⚠️ Platform Limitation**: The DM driver only supports **Linux amd64**. macOS/Darwin is not supported for building.
+
 ```yaml
 database_groups:
   relational:
