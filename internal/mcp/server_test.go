@@ -53,7 +53,7 @@ permissions:
 		}
 	}
 
-	perm := permission.NewChecker(cfg.Permissions)
+	perm := permission.NewChecker(cfg.PermissionsGroup)
 	guard := security.NewSQLGuard(security.MaxSQLLength)
 	auditLog, err := logger.NewAuditLogger()
 	if err != nil {
