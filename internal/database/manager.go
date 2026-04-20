@@ -140,7 +140,7 @@ func createDriver(driverType string) (DatabaseDriver, error) {
 	case "redis":
 		return NewRedisDriver(), nil
 	case "dm", "dmdbms", "dameng":
-		return NewDmDriver(), nil
+		return NewDmDriver()
 	default:
 		return nil, fmt.Errorf("unsupported driver type: %s", driverType)
 	}

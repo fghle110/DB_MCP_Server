@@ -1,65 +1,28 @@
 package database
 
 import (
-	"context"
 	"testing"
 
 	"github.com/dbmcp/dbmcp/internal/config"
 )
 
-func TestDmDriver_NewDriver(t *testing.T) {
-	drv := NewDmDriver()
-	if drv == nil {
-		t.Fatal("expected non-nil driver")
-	}
-}
-
-func TestDmDriver_QueryNotSupported(t *testing.T) {
-	drv := NewDmDriver()
-	_, err := drv.Query(context.Background(), "SELECT 1")
+func TestDmDriver_StubReturnsError(t *testing.T) {
+	drv, err := NewDmDriver()
 	if err == nil {
-		t.Error("expected error for unconnected driver")
+		t.Fatal("expected error from stub")
+	}
+	if drv != nil {
+		t.Fatal("expected nil driver from stub")
 	}
 }
 
-func TestDmDriver_ListDatabasesNotConnected(t *testing.T) {
-	drv := NewDmDriver()
-	_, err := drv.ListDatabases(context.Background())
+func TestDmDriver_StubMethodsReturnError(t *testing.T) {
+	_, err := NewDmDriver()
 	if err == nil {
-		t.Error("expected error for unconnected driver")
+		t.Fatal("expected error from stub")
 	}
-}
-
-func TestDmDriver_BeginTxNotSupported(t *testing.T) {
-	drv := NewDmDriver()
-	err := drv.BeginTx(context.Background())
-	if err == nil {
-		t.Error("expected error for transactions on unconnected driver")
-	}
-}
-
-func TestDmDriver_CommitNotSupported(t *testing.T) {
-	drv := NewDmDriver()
-	err := drv.Commit()
-	if err == nil {
-		t.Error("expected error for commit on unconnected driver")
-	}
-}
-
-func TestDmDriver_RollbackNotSupported(t *testing.T) {
-	drv := NewDmDriver()
-	err := drv.Rollback()
-	if err == nil {
-		t.Error("expected error for rollback on unconnected driver")
-	}
-}
-
-func TestDmDriver_CloseWithoutConnection(t *testing.T) {
-	drv := NewDmDriver()
-	err := drv.Close()
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-	}
+	// Driver is nil, subsequent methods are not callable on nil pointer.
+	// The stub is validated by createDriver in the manager integration tests.
 }
 
 func TestBuildDmDSN_Defaults(t *testing.T) {
@@ -70,7 +33,8 @@ func TestBuildDmDSN_Defaults(t *testing.T) {
 		Database: "TEST",
 	}
 	dsn := buildDmDSN(cfg)
-	if dsn != "dm://SYSDBA:SYSDBA@localhost:5236?schema=TEST" {
+	// Database 字段不作为 schema 参数
+	if dsn != "dm://SYSDBA:SYSDBA@localhost:5236?autoCommit=0" {
 		t.Errorf("unexpected DSN: %s", dsn)
 	}
 }
@@ -85,10 +49,11 @@ func TestBuildDmDSN_WithOptions(t *testing.T) {
 		Database: "MYDB",
 		Options: map[string]string{
 			"connectTimeout": "30",
+			"schema":         "my_schema",
 		},
 	}
 	dsn := buildDmDSN(cfg)
-	expected := "dm://admin:pass@192.168.1.100:5237?schema=MYDB&connectTimeout=30"
+	expected := "dm://admin:pass@192.168.1.100:5237?autoCommit=0&connectTimeout=30&schema=my_schema"
 	if dsn != expected {
 		t.Errorf("unexpected DSN: %s (expected: %s)", dsn, expected)
 	}

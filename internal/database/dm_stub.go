@@ -11,8 +11,8 @@ import (
 type DmDriver struct{}
 
 // NewDmDriver 创建达梦驱动实例（需要 -tags dm 编译）
-func NewDmDriver() *DmDriver {
-	panic("DM driver not available. Build with -tags dm.")
+func NewDmDriver() (*DmDriver, error) {
+	return nil, fmt.Errorf("DM driver not available: build with -tags dm to enable Dameng support")
 }
 
 func (d *DmDriver) Connect(dsn string) error                          { return fmt.Errorf("DM driver not available") }
