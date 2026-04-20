@@ -5,13 +5,12 @@ before:
     - go mod tidy
 
 builds:
+  # 标准版：全平台，不含达梦驱动
   - id: dbmcp
     main: ./cmd/dbmcp
     binary: dbmcp
     env:
       - CGO_ENABLED=0
-    tags:
-      - dm
     goos:
       - linux
       - darwin
@@ -28,8 +27,28 @@ builds:
       - -X main.commit={{.Commit}}
       - -X main.date={{.Date}}
 
+  # 达梦版：仅 Linux amd64，含达梦驱动
+  - id: dbmcp-dm
+    main: ./cmd/dbmcp
+    binary: dbmcp-dm
+    env:
+      - CGO_ENABLED=0
+    tags:
+      - dm
+    goos:
+      - linux
+    goarch:
+      - amd64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+
 archives:
   - id: dbmcp
+    builds:
+      - dbmcp
     format: tar.gz
     name_template: >-
       {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
@@ -40,6 +59,16 @@ archives:
       - README.md
       - LICENSE
       - docs/**/*
+
+  - id: dbmcp-dm
+    builds:
+      - dbmcp-dm
+    format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}-dm_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+    files:
+      - README.md
+      - LICENSE
 
 checksum:
   name_template: "checksums.txt"
