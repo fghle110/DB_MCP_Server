@@ -10,40 +10,54 @@ import (
 
 // Checker 权限校验器
 type Checker struct {
-	cfg      atomic.Pointer[config.PermissionConfig]
-	nosqlCfg atomic.Pointer[config.NosqlPermissionConfig]
+	relationalPerms atomic.Pointer[map[string]config.PermissionConfig]
+	nosqlPerms      atomic.Pointer[map[string]config.NosqlPermissionConfig]
 }
 
 // NewChecker 创建权限校验器
-func NewChecker(cfg config.PermissionConfig) *Checker {
+func NewChecker(perms config.PermissionsGroup) *Checker {
 	c := &Checker{}
-	c.cfg.Store(&cfg)
-	defaultNosql := config.NosqlPermissionConfig{
-		ReadOnly:        false,
-		AllowedCommands: []string{"GET", "SET", "HGET", "HGETALL", "HSET", "LPUSH", "LRANGE", "SADD", "SMEMBERS", "SCAN", "INFO", "DEL", "EXISTS", "TTL", "TYPE", "PING", "ECHO", "DBSIZE", "KEYS"},
-		BlockedKeys:     []string{},
-	}
-	c.nosqlCfg.Store(&defaultNosql)
+	c.relationalPerms.Store(&perms.Relational)
+	c.nosqlPerms.Store(&perms.Nosql)
 	return c
 }
 
-// Update 更新权限配置(原子替换)
-func (c *Checker) Update(cfg config.PermissionConfig) {
-	c.cfg.Store(&cfg)
+// Update 更新指定关系型数据库的权限配置(原子替换)
+func (c *Checker) Update(database string, cfg config.PermissionConfig) {
+	perms := c.relationalPerms.Load()
+	newPerms := make(map[string]config.PermissionConfig)
+	for k, v := range *perms {
+		newPerms[k] = v
+	}
+	newPerms[database] = cfg
+	c.relationalPerms.Store(&newPerms)
 }
 
-// UpdateNosql 更新 NoSQL 权限配置(原子替换)
-func (c *Checker) UpdateNosql(cfg config.NosqlPermissionConfig) {
-	c.nosqlCfg.Store(&cfg)
+// UpdateNosql 更新指定 NoSQL 数据库的权限配置(原子替换)
+func (c *Checker) UpdateNosql(database string, cfg config.NosqlPermissionConfig) {
+	perms := c.nosqlPerms.Load()
+	newPerms := make(map[string]config.NosqlPermissionConfig)
+	for k, v := range *perms {
+		newPerms[k] = v
+	}
+	newPerms[database] = cfg
+	c.nosqlPerms.Store(&newPerms)
+}
+
+// UpdateFromConfig 从配置全量更新权限（用于热重载）
+func (c *Checker) UpdateFromConfig(perms config.PermissionsGroup) {
+	c.relationalPerms.Store(&perms.Relational)
+	c.nosqlPerms.Store(&perms.Nosql)
 }
 
 // CheckSelect 检查 SELECT 权限
 func (c *Checker) CheckSelect(database string, tableName string) error {
-	cfg := c.cfg.Load()
-	if err := c.checkDatabase(cfg, database); err != nil {
-		return err
+	perms := c.relationalPerms.Load()
+	cfg, ok := (*perms)[database]
+	if !ok {
+		return fmt.Errorf("database '%s' has no permission config", database)
 	}
-	if err := c.checkTable(cfg, tableName); err != nil {
+	if err := c.checkTable(&cfg, tableName); err != nil {
 		return err
 	}
 	return nil
@@ -51,29 +65,34 @@ func (c *Checker) CheckSelect(database string, tableName string) error {
 
 // CheckWrite 检查写入权限
 func (c *Checker) CheckWrite(database string, tableName string, actionType string) error {
-	cfg := c.cfg.Load()
+	perms := c.relationalPerms.Load()
+	cfg, ok := (*perms)[database]
+	if !ok {
+		return fmt.Errorf("database '%s' has no permission config", database)
+	}
 	if cfg.ReadOnly {
-		return fmt.Errorf("database is in read-only mode, %s not allowed", actionType)
+		return fmt.Errorf("database '%s' is in read-only mode, %s not allowed", database, actionType)
 	}
-	if err := c.checkDatabase(cfg, database); err != nil {
+	if err := c.checkTable(&cfg, tableName); err != nil {
 		return err
 	}
-	if err := c.checkTable(cfg, tableName); err != nil {
-		return err
-	}
-	if !c.isActionAllowed(cfg, actionType) {
-		return fmt.Errorf("action '%s' is not allowed", actionType)
+	if !c.isActionAllowed(&cfg, actionType) {
+		return fmt.Errorf("action '%s' is not allowed for database '%s'", actionType, database)
 	}
 	return nil
 }
 
 // CheckRedisCommand 检查 Redis 的命令权限
-func (c *Checker) CheckRedisCommand(cmd string, key string) error {
-	cfg := c.nosqlCfg.Load()
+func (c *Checker) CheckRedisCommand(database string, cmd string, key string) error {
+	perms := c.nosqlPerms.Load()
+	cfg, ok := (*perms)[database]
+	if !ok {
+		return fmt.Errorf("database '%s' has no nosql permission config", database)
+	}
 
 	// read_only 模式：拦截写命令
 	if cfg.ReadOnly && IsRedisWriteCommand(cmd) {
-		return fmt.Errorf("database is in read-only mode, %s not allowed", cmd)
+		return fmt.Errorf("database '%s' is in read-only mode, %s not allowed", database, cmd)
 	}
 
 	// 命令白名单
@@ -100,19 +119,14 @@ func (c *Checker) CheckRedisCommand(cmd string, key string) error {
 	return nil
 }
 
-// IsReadOnly 检查是否只读模式
-func (c *Checker) IsReadOnly() bool {
-	return c.cfg.Load().ReadOnly
-}
-
-// checkDatabase 检查数据库是否在白名单中
-func (c *Checker) checkDatabase(cfg *config.PermissionConfig, database string) error {
-	for _, db := range cfg.AllowedDatabases {
-		if db == "*" || db == database {
-			return nil
-		}
+// IsReadOnly 检查指定数据库是否只读模式
+func (c *Checker) IsReadOnly(database string) bool {
+	perms := c.relationalPerms.Load()
+	cfg, ok := (*perms)[database]
+	if !ok {
+		return false
 	}
-	return fmt.Errorf("database '%s' is not allowed", database)
+	return cfg.ReadOnly
 }
 
 // checkTable 检查表是否在黑名单中
