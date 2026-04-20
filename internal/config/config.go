@@ -70,10 +70,10 @@ type NosqlPermissionConfig struct {
 
 // PermissionsGroup 按类型分组的权限配置
 type PermissionsGroup struct {
-	Relational PermissionConfig          `yaml:"relational"`
-	Nosql      NosqlPermissionConfig     `yaml:"nosql"`
-	Timeseries PermissionConfig          `yaml:"timeseries"`
-	Graph      PermissionConfig          `yaml:"graph"`
+	Relational map[string]PermissionConfig      `yaml:"relational"`
+	Nosql      map[string]NosqlPermissionConfig `yaml:"nosql"`
+	Timeseries map[string]PermissionConfig      `yaml:"timeseries"`
+	Graph      map[string]PermissionConfig      `yaml:"graph"`
 }
 
 // AppConfig 完整配置
@@ -139,29 +139,45 @@ func NormalizeConfig(cfg *AppConfig) {
 
 // applyDefaults 应用默认权限配置
 func applyDefaults(cfg *AppConfig) {
-	if cfg.Permissions.AllowedActions == nil {
-		cfg.Permissions.AllowedActions = []string{"select", "insert", "update", "delete", "create", "drop"}
+	// 初始化权限 map
+	if cfg.PermissionsGroup.Relational == nil {
+		cfg.PermissionsGroup.Relational = make(map[string]PermissionConfig)
 	}
-	if cfg.Permissions.AllowedDatabases == nil {
-		cfg.Permissions.AllowedDatabases = []string{"*"}
+	if cfg.PermissionsGroup.Nosql == nil {
+		cfg.PermissionsGroup.Nosql = make(map[string]NosqlPermissionConfig)
 	}
-	if cfg.Permissions.BlockedTables == nil {
-		cfg.Permissions.BlockedTables = []string{}
+	if cfg.PermissionsGroup.Timeseries == nil {
+		cfg.PermissionsGroup.Timeseries = make(map[string]PermissionConfig)
 	}
-	if cfg.Databases == nil {
-		cfg.Databases = make(map[string]DatabaseConfig)
+	if cfg.PermissionsGroup.Graph == nil {
+		cfg.PermissionsGroup.Graph = make(map[string]PermissionConfig)
 	}
 
-	// NoSQL 默认权限
-	if cfg.PermissionsGroup.Nosql.AllowedCommands == nil {
-		cfg.PermissionsGroup.Nosql.AllowedCommands = []string{
-			"GET", "SET", "HGET", "HGETALL", "HSET", "LPUSH", "LRANGE",
-			"SADD", "SMEMBERS", "SCAN", "INFO", "DEL", "EXISTS", "TTL",
-			"TYPE", "PING", "ECHO", "DBSIZE", "KEYS",
+	// 为每个 relational 数据库生成默认权限
+	for name := range cfg.DatabaseGroups.Relational {
+		if _, exists := cfg.PermissionsGroup.Relational[name]; !exists {
+			cfg.PermissionsGroup.Relational[name] = PermissionConfig{
+				ReadOnly:         false,
+				AllowedDatabases: []string{"*"},
+				AllowedActions:   []string{"SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP"},
+				BlockedTables:    []string{},
+			}
 		}
 	}
-	if cfg.PermissionsGroup.Nosql.BlockedKeys == nil {
-		cfg.PermissionsGroup.Nosql.BlockedKeys = []string{}
+
+	// 为每个 nosql 数据库生成默认权限
+	for name := range cfg.DatabaseGroups.Nosql {
+		if _, exists := cfg.PermissionsGroup.Nosql[name]; !exists {
+			cfg.PermissionsGroup.Nosql[name] = NosqlPermissionConfig{
+				ReadOnly:        false,
+				AllowedCommands: []string{
+					"GET", "SET", "HGET", "HGETALL", "HSET", "LPUSH", "LRANGE",
+					"SADD", "SMEMBERS", "SCAN", "INFO", "DEL", "EXISTS", "TTL",
+					"TYPE", "PING", "ECHO", "DBSIZE", "KEYS",
+				},
+				BlockedKeys: []string{},
+			}
+		}
 	}
 
 	NormalizeConfig(cfg)
