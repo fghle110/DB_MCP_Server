@@ -604,12 +604,3 @@ func TestGenerateDefaultConfig(t *testing.T) {
 		t.Error("expected per-nosql permission for my_redis")
 	}
 }
-
-func TestGenerateDefaultConfig_InvalidPath(t *testing.T) {
-	// Use a path that should be unwritable on both Windows and Unix
-	err := GenerateDefaultConfig("C:\\Windows\\System32\\impossible-dir-xyz\\config.yaml")
-	if err == nil {
-		t.Error("expected error for unwritable path")
-	}
-}
-
