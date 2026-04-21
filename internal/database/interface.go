@@ -30,3 +30,16 @@ type DatabaseDriver interface {
 	Commit() error
 	Rollback() error
 }
+
+// convertBytes converts []byte values to string.
+// database/sql scans VARCHAR/TEXT/BLOB columns as []byte by default.
+// Go's encoding/json then encodes []byte as base64. This function
+// prevents that by converting to string before serialization.
+func convertBytes(values []interface{}) []interface{} {
+	for i, v := range values {
+		if b, ok := v.([]byte); ok {
+			values[i] = string(b)
+		}
+	}
+	return values
+}

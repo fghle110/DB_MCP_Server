@@ -74,7 +74,10 @@ func TestMySQL_InsertAndSelect(t *testing.T) {
 	if len(result.Rows) != 1 {
 		t.Fatalf("expected 1 row, got %d", len(result.Rows))
 	}
-	name := string(result.Rows[0][1].([]byte))
+	name, ok := result.Rows[0][1].(string)
+	if !ok {
+		t.Fatalf("expected name to be string, got %T", result.Rows[0][1])
+	}
 	if name != "Alice" {
 		t.Errorf("expected name 'Alice', got %v", name)
 	}
