@@ -565,3 +565,51 @@ func TestNormalizeConfig_DoesNotOverwriteExistingPermissions(t *testing.T) {
 	}
 }
 
+func TestGenerateDefaultConfig(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+
+	err := GenerateDefaultConfig(path)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Verify file was created
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		t.Fatal("expected default config file to be created")
+	}
+
+	// Verify it can be loaded
+	cfg, err := LoadConfig(path)
+	if err != nil {
+		t.Fatalf("failed to load generated default config: %v", err)
+	}
+
+	// Verify expected databases exist
+	if _, ok := cfg.DatabaseGroups.Relational["my_mysql"]; !ok {
+		t.Error("expected my_mysql in relational databases")
+	}
+	if _, ok := cfg.DatabaseGroups.Relational["my_postgres"]; !ok {
+		t.Error("expected my_postgres in relational databases")
+	}
+	if _, ok := cfg.DatabaseGroups.Nosql["my_redis"]; !ok {
+		t.Error("expected my_redis in nosql databases")
+	}
+
+	// Verify permissions exist for each database
+	if _, ok := cfg.PermissionsGroup.Relational["my_mysql"]; !ok {
+		t.Error("expected per-database permission for my_mysql")
+	}
+	if _, ok := cfg.PermissionsGroup.Nosql["my_redis"]; !ok {
+		t.Error("expected per-nosql permission for my_redis")
+	}
+}
+
+func TestGenerateDefaultConfig_InvalidPath(t *testing.T) {
+	// Use a path that should be unwritable on both Windows and Unix
+	err := GenerateDefaultConfig("C:\\Windows\\System32\\impossible-dir-xyz\\config.yaml")
+	if err == nil {
+		t.Error("expected error for unwritable path")
+	}
+}
+

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -437,4 +438,92 @@ func BackupConfig(path string) error {
 		return err
 	}
 	return os.WriteFile(path+".bak", data, 0600)
+}
+
+// GenerateDefaultConfig creates a default config file with placeholder
+// database entries for common database types.
+func GenerateDefaultConfig(path string) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("create config directory: %w", err)
+	}
+
+	cfg := &AppConfig{
+		DatabaseGroups: DatabaseGroups{
+			Relational: map[string]DatabaseConfig{
+				"my_mysql": {
+					Driver:   "mysql",
+					Host:     "localhost",
+					Port:     3306,
+					Username: "root",
+					Password: "",
+					Database: "",
+					Options:  map[string]string{"parseTime": "true"},
+				},
+				"my_postgres": {
+					Driver:   "postgres",
+					Host:     "localhost",
+					Port:     5432,
+					Username: "postgres",
+					Password: "",
+					Database: "postgres",
+					Options:  map[string]string{"sslmode": "disable"},
+				},
+			},
+			Nosql: map[string]DatabaseConfig{
+				"my_redis": {
+					Driver:   "redis",
+					Host:     "localhost",
+					Port:     6379,
+					Password: "",
+					Options:  map[string]string{"db": "0"},
+				},
+			},
+			Timeseries: make(map[string]DatabaseConfig),
+			Graph:      make(map[string]DatabaseConfig),
+		},
+		PermissionsGroup: PermissionsGroup{
+			Relational: map[string]PermissionConfig{
+				"my_mysql": {
+					ReadOnly:         false,
+					AllowedDatabases: []string{"*"},
+					AllowedActions:   []string{"SELECT", "INSERT", "UPDATE", "DELETE"},
+					BlockedTables:    []string{},
+				},
+				"my_postgres": {
+					ReadOnly:         false,
+					AllowedDatabases: []string{"*"},
+					AllowedActions:   []string{"SELECT", "INSERT", "UPDATE", "DELETE"},
+					BlockedTables:    []string{},
+				},
+			},
+			Nosql: map[string]NosqlPermissionConfig{
+				"my_redis": {
+					ReadOnly: false,
+					AllowedCommands: []string{
+						"GET", "SET", "HGET", "HGETALL", "HSET",
+						"LPUSH", "LRANGE", "SCAN", "INFO", "DEL",
+						"EXISTS", "TTL", "TYPE", "PING",
+					},
+					BlockedKeys: []string{},
+				},
+			},
+			Timeseries: make(map[string]PermissionConfig),
+			Graph:      make(map[string]PermissionConfig),
+		},
+	}
+
+	NormalizeConfig(cfg)
+	applyDefaults(cfg)
+
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("marshal default config: %w", err)
+	}
+
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("write default config: %w", err)
+	}
+
+	return nil
 }
