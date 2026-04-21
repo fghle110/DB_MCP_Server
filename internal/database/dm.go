@@ -19,8 +19,8 @@ type DmDriver struct {
 }
 
 // NewDmDriver 创建达梦驱动实例
-func NewDmDriver() *DmDriver {
-	return &DmDriver{}
+func NewDmDriver() (*DmDriver, error) {
+	return &DmDriver{}, nil
 }
 
 // Connect 连接达梦
