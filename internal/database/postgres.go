@@ -59,7 +59,7 @@ func (d *PostgresDriver) Query(ctx context.Context, sqlStr string) (*QueryResult
 		if err := rows.Scan(valuePtrs...); err != nil {
 			return nil, err
 		}
-		result.Rows = append(result.Rows, values)
+		result.Rows = append(result.Rows, convertBytes(values))
 	}
 	return result, rows.Err()
 }
