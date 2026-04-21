@@ -6,6 +6,8 @@
 
 默认路径：`~/.dbmcp/config.yaml`（可通过 `--config` 指定）
 
+**首次运行**：当配置文件不存在时，dbmcp 会自动在 `~/.dbmcp/` 目录下生成默认配置文件（包含 `my_mysql`、`my_postgres`、`my_redis` 占位条目）。编辑填入密码等信息后重新启动即可。
+
 ## 配置结构（新格式）
 
 ```yaml
@@ -313,23 +315,37 @@ MCP Server 运行时会监听配置文件变更：
 配置中允许存在注释掉或空的条目，不会被当作错误：
 
 ```yaml
-databases:
-  mysql_prod:
-    driver: mysql
-    host: prod.example.com
-    port: 3306
-    username: root
-    password: ""
-    database: ""
+database_groups:
+  relational:
+    mysql_prod:
+      driver: mysql
+      host: prod.example.com
+      port: 3306
+      username: root
+      password: ""
+      database: ""
 
-  # mysql_backup:          # 注释掉的条目会被跳过
-  #   driver: mysql
+    # mysql_backup:          # 注释掉的条目会被跳过
+    #   driver: mysql
 
-  pg_disabled:             # 只有 driver 没有 host/dsn 也会跳过
-    driver: postgres
+    pg_disabled:             # 只有 driver 没有 host/dsn 也会跳过
+      driver: postgres
 ```
 
 校验要求：至少一个完整有效的数据库条目。
+
+## 查询结果格式
+
+所有关系型数据库（MySQL、PostgreSQL、SQL Server）的查询结果以 JSON 格式返回，文本字段直接输出可读字符串（而非 base64）：
+
+```json
+{
+  "Columns": ["id", "name", "email"],
+  "Rows": [
+    [1, "张三", "zhangsan@example.com"]
+  ]
+}
+```
 
 ---
 

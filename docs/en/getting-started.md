@@ -52,7 +52,9 @@ GOOS=darwin GOARCH=arm64 go build -o build/dbmcp-darwin ./cmd/dbmcp
 
 ### 4. Configure
 
-Create config directory and edit:
+**First run**: dbmcp automatically generates a default config file (with placeholder entries for MySQL, PostgreSQL, Redis) in the config directory. Just edit the file with your actual credentials and restart.
+
+To create manually:
 
 ```bash
 # Windows
@@ -67,22 +69,25 @@ nano ~/.dbmcp/config.yaml
 Minimal config example (PostgreSQL):
 
 ```yaml
-databases:
-  postgres:
-    driver: postgres
-    host: localhost
-    port: 5432
-    username: postgres
-    password: "your_password"
-    database: postgres
-    options:
-      sslmode: disable
+database_groups:
+  relational:
+    postgres:
+      driver: postgres
+      host: localhost
+      port: 5432
+      username: postgres
+      password: "your_password"
+      database: postgres
+      options:
+        sslmode: disable
 
-permissions:
-  read_only: false
-  allowed_databases: ["*"]
-  allowed_actions: [SELECT, INSERT, UPDATE, DELETE, CREATE, DROP]
-  blocked_tables: []
+permissions_groups:
+  relational:
+    postgres:
+      read_only: false
+      allowed_databases: ["*"]
+      allowed_actions: [SELECT, INSERT, UPDATE, DELETE, CREATE, DROP]
+      blocked_tables: []
 ```
 
 > See [Configuration Guide](configuration.md) for details.

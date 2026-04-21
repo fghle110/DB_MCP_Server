@@ -52,7 +52,9 @@ GOOS=darwin GOARCH=arm64 go build -o build/dbmcp-darwin ./cmd/dbmcp
 
 ### 4. 配置
 
-创建配置目录并编辑配置文件：
+**首次运行** dbmcp 时，程序会在配置目录下**自动生成**默认配置文件（包含 MySQL、PostgreSQL、Redis 占位配置）。你只需编辑文件填入实际密码等信息，重新启动即可。
+
+如需手动创建，按以下步骤操作：
 
 ```bash
 # Windows
@@ -67,22 +69,25 @@ nano ~/.dbmcp/config.yaml
 最小配置示例（PostgreSQL）：
 
 ```yaml
-databases:
-  postgres:
-    driver: postgres
-    host: localhost
-    port: 5432
-    username: postgres
-    password: "your_password"
-    database: postgres
-    options:
-      sslmode: disable
+database_groups:
+  relational:
+    postgres:
+      driver: postgres
+      host: localhost
+      port: 5432
+      username: postgres
+      password: "your_password"
+      database: postgres
+      options:
+        sslmode: disable
 
-permissions:
-  read_only: false
-  allowed_databases: ["*"]
-  allowed_actions: [SELECT, INSERT, UPDATE, DELETE, CREATE, DROP]
-  blocked_tables: []
+permissions_groups:
+  relational:
+    postgres:
+      read_only: false
+      allowed_databases: ["*"]
+      allowed_actions: [SELECT, INSERT, UPDATE, DELETE, CREATE, DROP]
+      blocked_tables: []
 ```
 
 > 详细配置说明见 [配置操作指南](configuration.md)
@@ -251,7 +256,7 @@ Windows 路径示例：
 
 ### 配置文件未找到
 
-确保配置文件存在于 `~/.dbmcp/config.yaml` 或通过 `--config` 指定正确路径。
+首次运行时 dbmcp 会自动在 `~/.dbmcp/` 目录下生成默认配置文件。如果已有配置文件被删除，删除目录后重新启动即可自动生成，或通过 `--config` 指定路径。
 
 ### 数据库连接失败
 

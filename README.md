@@ -42,13 +42,15 @@ go install ./cmd/dbmcp
 
 ### 3. 配置
 
-在 Windows 上，配置文件默认位于 `%USERPROFILE%\.dbmcp\config.yaml`（即 `C:\Users\你的用户名\.dbmcp\config.yaml`）。
+**首次运行** dbmcp 时，程序会在 `%USERPROFILE%\.dbmcp\` 目录下**自动生成**默认配置文件（包含 MySQL、PostgreSQL、Redis 占位配置）。你只需编辑文件填入实际密码等信息，重新启动即可。
+
+如需手动创建，配置文件位于 `%USERPROFILE%\.dbmcp\config.yaml`（即 `C:\Users\你的用户名\.dbmcp\config.yaml`）。
 
 ```powershell
 # 创建配置目录
 mkdir $env:USERPROFILE\.dbmcp
 
-# 复制配置模板
+# 复制配置模板（可选，首次运行会自动生成）
 Copy-Item config\config.yaml.example $env:USERPROFILE\.dbmcp\config.yaml
 
 # 编辑配置文件

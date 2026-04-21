@@ -6,6 +6,8 @@
 
 Default path: `~/.dbmcp/config.yaml` (override with `--config`)
 
+**First run**: When the config file doesn't exist, dbmcp automatically generates a default config with placeholder entries (`my_mysql`, `my_postgres`, `my_redis`). Edit with your credentials and restart.
+
 ## Config Structure (New Format)
 
 ```yaml
