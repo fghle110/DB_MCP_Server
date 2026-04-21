@@ -28,11 +28,18 @@ func main() {
 		if home == "" {
 			log.Fatal("cannot determine home directory, use --config flag")
 		}
-		*configPath = home + "/.dbmcp/config.yaml"
+		*configPath = home + string(os.PathSeparator) + ".dbmcp" + string(os.PathSeparator) + "config.yaml"
 	}
 
 	if _, err := os.Stat(*configPath); os.IsNotExist(err) {
-		log.Fatalf("config file not found: %s\nRun with --config to specify a custom path.", *configPath)
+		log.Printf("Config file not found: %s", *configPath)
+		log.Println("Generating default config file...")
+		if err := config.GenerateDefaultConfig(*configPath); err != nil {
+			log.Fatalf("Failed to generate default config: %v", err)
+		}
+		log.Printf("Default config created: %s", *configPath)
+		log.Println("Please edit the config file with your database credentials, then restart dbmcp.")
+		os.Exit(0)
 	}
 
 	app, err := config.NewAppState(*configPath)
